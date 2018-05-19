@@ -44,7 +44,7 @@
 #define ROAD_CURVE_MAX      6
 // How many steps the road can take before it has to change directions
 #define ROAD_SECTION_MIN    15
-#define ROAD_SECTION_MAX    40
+#define ROAD_SECTION_MAX    50
 
 // Controls - Used to check if any button/joystick has been activated (don't check PINs)
 uint8_t button_left_state;
@@ -159,6 +159,9 @@ uint16_t adc_read(uint8_t channel);
 int main(void) {
     // Set clock speed, contrast settings and initial register setups
     teensy_setup();
+
+    // Initialise random number generator
+    srand(100);
 
     // Go to the Splash Screen
     change_screen(START_SCREEN);
@@ -357,6 +360,10 @@ void game_screen_draw(void) {
 
     // Draw the player
     sprite_draw(&player);
+
+    char buffer[80];
+    draw_formatted(2, 30, buffer, sizeof(buffer), "%d", road_section_length);
+    draw_formatted(2, 40, buffer, sizeof(buffer), "%d", road_direction);
 }
 
 /**
@@ -398,9 +405,9 @@ void game_screen_setup(void) {
         road[y] = road_x;
     }
     road_counter = 0;
-    road_curve = ROAD_MIN_CURVE;
+    road_curve = ROAD_CURVE_MIN;
     road_direction = ROAD_STRAIGHT;
-    road_section_length = 0;
+    road_section_length = rand() % (ROAD_SECTION_MAX + 1 - ROAD_SECTION_MIN) + ROAD_SECTION_MIN;;
     
     // Setup the player
     player_car_setup();
@@ -477,7 +484,7 @@ void road_step(void) {
                 break;
         }
 
-        if((in_bounds(x+dx,0)) && (road_counter > road_curve)) {
+        if((x+dx+road_width < LCD_X-1) && (x+dx > DASHBOARD_BORDER_X) && (road_counter > road_curve)) {
             road_counter = 0;
             x += dx;
         }
@@ -488,9 +495,12 @@ void road_step(void) {
         road[0] = x;
 
         road_section_length--;
-        // If it's time to switch directions
-        if(road_section_length < 0) {
-
+        // If it's time to switch directions (added another check in case of overflow)
+        if((road_section_length == 0) || (road_section_length > ROAD_SECTION_MAX)) {
+            road_direction = rand() % 3;
+            road_curve = rand() % (ROAD_CURVE_MAX + 1 - ROAD_CURVE_MIN) + ROAD_CURVE_MIN;
+            road_section_length = rand() % (ROAD_SECTION_MAX + 1 - ROAD_SECTION_MIN) + ROAD_SECTION_MIN;
+            road_counter = 0;
         }
     }
 }
