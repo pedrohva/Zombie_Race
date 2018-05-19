@@ -474,7 +474,8 @@ void player_car_reset(void) {
  * Will take into account collisions and the speed of the car to modify the dx given
  **/
 void player_car_move(double dx) {
-    dx = dx * (speed/SPEED_FACTOR);
+    double dilation = (speed/SPEED_FACTOR) / 2;
+    dx = dx * dilation;
 
     double x = player.x + dx;
     // Check if the player will still be bounded
