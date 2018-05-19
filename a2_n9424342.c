@@ -46,6 +46,11 @@
 #define ROAD_SECTION_MIN    15
 #define ROAD_SECTION_MAX    35
 
+// The rate at which the fuel decreases
+#define FUEL_FACTOR         (30.0)
+// The rate at which distance increases
+#define DIST_FACTOR         (80.0)
+
 // Controls - Used to check if any button/joystick has been activated (don't check PINs)
 uint8_t button_left_state;
 uint8_t button_right_state;
@@ -67,8 +72,8 @@ uint8_t stick_down_history = 0;
 // Game information
 uint8_t condition;
 double speed;
-uint8_t fuel;
-uint8_t distance;
+double fuel;
+double distance;
 
 // Game time control
 uint16_t game_timer_counter;
@@ -328,7 +333,14 @@ void game_screen_update(void) {
     }
 
     if(!game_paused) {
+        // Check if we ran out of fuel
+        if(fuel < 1) {
+            fuel = 0.01;
+        }
+
+        // Step through our objects
         road_step();
+
         // Deals with input that controls horizontal movement
         if(stick_left_state) {
             player_car_move(-1.0);
@@ -377,6 +389,11 @@ void game_screen_update(void) {
                 }
             }
         }
+
+        // Update the fuel
+        fuel -= speed/FUEL_FACTOR;
+        // Update the distance
+        distance += speed/DIST_FACTOR;
     }
 }
 
@@ -392,7 +409,7 @@ void game_screen_draw(void) {
         draw_string(30, 2, "TIME:", FG_COLOUR);
         draw_formatted(30, 12, buffer, sizeof(buffer), "%.3f", time_paused);
         draw_string(30, 22, "DISTANCE:", FG_COLOUR);
-        draw_formatted(30, 32, buffer, sizeof(buffer), "%d", distance);
+        draw_formatted(30, 32, buffer, sizeof(buffer), "%.0f", distance);
     } else {
         // Draw the road
         for(int y=0; y<LCD_Y; y++) {
@@ -415,9 +432,9 @@ void dashboard_draw(void) {
     // Draw the car's information
     char buffer[80];
     draw_string(2, 2, "H:", FG_COLOUR);
-    draw_formatted(10, 2, buffer, sizeof(buffer), "%d", condition);
+    draw_formatted(11, 2, buffer, sizeof(buffer), "%d", condition);
     draw_string(2, 12, "F:", FG_COLOUR);
-    draw_formatted(10, 12, buffer, sizeof(buffer), "%d", fuel);
+    draw_formatted(11, 12, buffer, sizeof(buffer), "%.0f", fuel);
     draw_string(2, 22, "S:", FG_COLOUR);
     draw_formatted(11, 22, buffer, sizeof(buffer), "%.0f", speed);
 }
