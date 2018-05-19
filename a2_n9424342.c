@@ -41,10 +41,10 @@
 #define ROAD_STRAIGHT       2
 // The minimum and maximum curve allowed for the road (see road_curve)
 #define ROAD_CURVE_MIN      2
-#define ROAD_CURVE_MAX      6
+#define ROAD_CURVE_MAX      3
 // How many steps the road can take before it has to change directions
 #define ROAD_SECTION_MIN    15
-#define ROAD_SECTION_MAX    50
+#define ROAD_SECTION_MAX    35
 
 // Controls - Used to check if any button/joystick has been activated (don't check PINs)
 uint8_t button_left_state;
@@ -66,7 +66,7 @@ uint8_t stick_down_history = 0;
 
 // Game information
 uint8_t condition;
-uint8_t speed;
+double speed;
 uint8_t fuel;
 uint8_t distance;
 
@@ -81,7 +81,7 @@ Sprite player;
 // Road
 uint8_t road[LCD_Y];            // The x-coordinates of each road piece
 int road_width = 16;   
-float road_y = 0.0;             // Used to decide when to move the road down (so it matches speed of player)
+double road_y = 0.0;             // Used to decide when to move the road down (so it matches speed of player)
 uint8_t road_counter;           // Counts how many steps the road has taken before being moved horizontally
 uint8_t road_curve;             // This decides how many times the road must move before it is moved horizontally
 int road_direction;
@@ -100,6 +100,7 @@ enum GameScreens {
 } game_screen;
 
 // Game loop controls 
+const double loop_freq = 60.0;
 uint16_t loop_counter;
 
 // Bitmaps
@@ -116,7 +117,7 @@ int car_height = 5;
 /** ---------------------------- FUNCTION DECLARATIONS ---------------------------- **/
 // Helper functions
 double elapsed_time(uint16_t timer_counter);
-bool in_bounds(float x, float y);
+bool in_bounds(double x, double y);
 
 // Game loop functions
 void update(void);
@@ -142,7 +143,7 @@ void game_screen_setup(void);
 // Player location and movement functions
 void player_car_setup(void);
 void player_car_reset(void);
-void player_car_move(float dx);
+void player_car_move(double dx);
 
 // Road functions
 void road_step(void);
@@ -167,7 +168,7 @@ int main(void) {
     change_screen(START_SCREEN);
 
     // The minimum time we'll take to execute one iteration of the game loop
-    double time_step = 1/60.0;
+    double time_step = 1/loop_freq;
 
     // Start the main game loop
     loop_counter = 0;
@@ -198,7 +199,7 @@ double elapsed_time(uint16_t timer_counter) {
 /**
  * Checks if the given coordinate falls in bounds of the playable area
  **/
-bool in_bounds(float x, float y) {
+bool in_bounds(double x, double y) {
     if((x <= DASHBOARD_BORDER_X) || (x > LCD_X-1)) {
         return false;
     } else if((y <= 1) || (y > LCD_Y-1)) {
@@ -334,6 +335,48 @@ void game_screen_update(void) {
         } else if(stick_right_state) {
             player_car_move(1.0);
         }
+
+        // Accelerate or decelerate controls
+        if(button_left_state) {
+            // If breaking
+            if(speed > 0) {
+                // Calculate rate to decrease speed in order to go from 10 to 0 in 2 seconds
+                double rate = (5.0) / loop_freq;
+                speed -= 10*rate;
+                // Protect against overshoot
+                if(speed < 1) {
+                    speed = 0;
+                }
+            }
+        }else if(button_right_state) {
+            // If accelerating
+            if(speed < SPEED_MAX) {
+                // Calculate rate to increase speed in order to go from 1 to 10 in 5 seconds
+                double rate = (9.0/2.0) / loop_freq;
+                speed += 10*rate;
+                // Protect against overshoot
+                if(speed > SPEED_MAX-1) {
+                    speed = SPEED_MAX;
+                }
+            }
+        }else { // If no button is being pressed
+            // Decrease speed if above 1 or increase to 1 if below
+            if(speed > 1) {
+                double rate = (9.0/3.0) / loop_freq;
+                speed -= 9.0*rate;
+                // Protect against overshoot
+                if(speed < 1) {
+                    speed = 1;
+                }
+            }else {
+                double rate = (1.0/2.5) / loop_freq;
+                speed += 1.0*rate;
+                // Protect against overshoot
+                if(speed > 1) {
+                    speed = 1;
+                }
+            }
+        }
     }
 }
 
@@ -360,10 +403,6 @@ void game_screen_draw(void) {
 
     // Draw the player
     sprite_draw(&player);
-
-    char buffer[80];
-    draw_formatted(2, 30, buffer, sizeof(buffer), "%d", road_section_length);
-    draw_formatted(2, 40, buffer, sizeof(buffer), "%d", road_direction);
 }
 
 /**
@@ -380,7 +419,7 @@ void dashboard_draw(void) {
     draw_string(2, 12, "F:", FG_COLOUR);
     draw_formatted(10, 12, buffer, sizeof(buffer), "%d", fuel);
     draw_string(2, 22, "S:", FG_COLOUR);
-    draw_formatted(11, 22, buffer, sizeof(buffer), "%d", speed);
+    draw_formatted(11, 22, buffer, sizeof(buffer), "%.0f", speed);
 }
 
 /**
@@ -393,7 +432,7 @@ void game_screen_setup(void) {
     // Setup the initial car information
     condition = 100;
     fuel = 100;
-    speed = 5;
+    speed = 10;
     distance = 0;
 
     // Reset the game time
@@ -434,10 +473,10 @@ void player_car_reset(void) {
  * Changes the horizontal displacement of the player's car.
  * Will take into account collisions and the speed of the car to modify the dx given
  **/
-void player_car_move(float dx) {
+void player_car_move(double dx) {
     dx = dx * (speed/SPEED_FACTOR);
 
-    float x = player.x + dx;
+    double x = player.x + dx;
     // Check if the player will still be bounded
     if(!in_bounds(x, player.y)) {
         dx = 0;
@@ -453,8 +492,6 @@ void player_car_move(float dx) {
  * at the top of the screen.
  **/
 void road_step(void) {
-    road_counter++;
-
     // Decide if the road should be moved
     bool step = false;
     road_y += (speed/SPEED_FACTOR);
@@ -464,6 +501,8 @@ void road_step(void) {
     }
 
     if(step) {
+        road_counter++;
+
         // The x-coordinate of the new road piece being added
         int x = road[0];
         int dx;
@@ -497,7 +536,7 @@ void road_step(void) {
         road_section_length--;
         // If it's time to switch directions (added another check in case of overflow)
         if((road_section_length == 0) || (road_section_length > ROAD_SECTION_MAX)) {
-            road_direction = rand() % 3;
+            road_direction = rand() % 2;    // After the initial road straight, we only want to have turns naturally
             road_curve = rand() % (ROAD_CURVE_MAX + 1 - ROAD_CURVE_MIN) + ROAD_CURVE_MIN;
             road_section_length = rand() % (ROAD_SECTION_MAX + 1 - ROAD_SECTION_MIN) + ROAD_SECTION_MIN;
             road_counter = 0;
