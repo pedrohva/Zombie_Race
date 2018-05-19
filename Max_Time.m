@@ -1,0 +1,6 @@
+CPU_FREQ = 8000000;
+PRESCALE = 256;
+TCNT0 = 256;
+COUNTER = 65536;
+seconds = (COUNTER * 256 + TCNT0) * PRESCALE / CPU_FREQ
+minutes = seconds / 60
