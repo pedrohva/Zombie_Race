@@ -30,7 +30,7 @@
 #define STICK_DOWN          7
 
 // Determines the effect of the speed on the objects
-#define SPEED_FACTOR        (4.0)
+#define SPEED_FACTOR        (10.0)
 #define SPEED_MIN           0      
 #define SPEED_MAX           10
 #define SPEED_OFFROAD_MAX   3
@@ -50,6 +50,16 @@
 #define FUEL_FACTOR         (30.0)
 // The rate at which distance increases
 #define DIST_FACTOR         (80.0)
+
+// The different types of obstacles
+#define TERRAIN             0
+#define HAZARD              1
+
+// The different terrain types
+#define NUM_TERRAIN         10
+#define NUM_TERRAIN_TYPES   2
+#define TERRAIN_TREE        0
+#define TERRAIN_SIGN        1
 
 // Controls - Used to check if any button/joystick has been activated (don't check PINs)
 uint8_t button_left_state;
@@ -92,6 +102,10 @@ uint8_t road_curve;             // This decides how many times the road must mov
 int road_direction;
 uint8_t road_section_length;    // How many steps the road has taken in the current length
 
+// Terrain
+Sprite terrain[NUM_TERRAIN];                // Array that contains all of the terrain objects in the game
+Sprite terrain_image[NUM_TERRAIN_TYPES];    // Contains sprite information about each type of terrain
+
 /**
  * Holds information regarding what screen the player should be seeing right now. 
  * The state should only be changed through the function change_screen()
@@ -118,6 +132,26 @@ uint8_t car_image[] = {
 };
 int car_width = 4;
 int car_height = 5;
+
+uint8_t terrain_tree_image[] = {
+    0b00111100,
+    0b01111110,
+    0b11111111,
+    0b00011000,
+    0b00011000,
+};
+int terrain_tree_width = 8;
+int terrain_tree_height = 5;
+
+uint8_t terrain_sign_image[] = {
+    0b01010000,
+    0b11111000,
+    0b11111000,
+    0b01010000,
+    0b00000000,
+};
+int terrain_sign_width = 5;
+int terrain_sign_height = 4;
 
 /** ---------------------------- FUNCTION DECLARATIONS ---------------------------- **/
 // Helper functions
@@ -152,6 +186,16 @@ void player_car_move(double dx);
 
 // Road functions
 void road_step(void);
+
+// Obstacle functions
+void terrain_image_setup(void);
+void terrain_setup(void);
+void terrain_reset(int index, int y_bot);
+void terrain_step(void);
+
+// Collision detection
+bool check_collision(Sprite sprite);
+bool check_sprite_collided(Sprite sprite1, Sprite sprite2);
 
 // Teensy functions
 void teensy_setup(void);
@@ -340,6 +384,7 @@ void game_screen_update(void) {
 
         // Step through our objects
         road_step();
+        terrain_step();
 
         // Deals with input that controls horizontal movement
         if(stick_left_state) {
@@ -402,6 +447,8 @@ void game_screen_update(void) {
  **/
 void game_screen_draw(void) {
     dashboard_draw();
+    // Draw the player
+    sprite_draw(&player);
 
     // Draw the paused screen
     if(game_paused) {
@@ -411,15 +458,17 @@ void game_screen_draw(void) {
         draw_string(30, 22, "DISTANCE:", FG_COLOUR);
         draw_formatted(30, 32, buffer, sizeof(buffer), "%.0f", distance);
     } else {
+        // Draw the terrain
+        for(int i=0; i<NUM_TERRAIN; i++) {
+            sprite_draw(&terrain[i]);
+        }
+        
         // Draw the road
         for(int y=0; y<LCD_Y; y++) {
             draw_pixel(road[y], y, FG_COLOUR);
             draw_pixel(road[y]+road_width, y, FG_COLOUR);
         }
     }
-
-    // Draw the player
-    sprite_draw(&player);
 }
 
 /**
@@ -467,6 +516,8 @@ void game_screen_setup(void) {
     
     // Setup the player
     player_car_setup();
+    // Setup the obstacles
+    terrain_setup();
 }
 
 /**
@@ -491,7 +542,7 @@ void player_car_reset(void) {
  * Will take into account collisions and the speed of the car to modify the dx given
  **/
 void player_car_move(double dx) {
-    double dilation = (speed/SPEED_FACTOR) / 2;
+    double dilation = (speed/SPEED_FACTOR) / 1.0;
     dx = dx * dilation;
 
     double x = player.x + dx;
@@ -512,7 +563,7 @@ void player_car_move(double dx) {
 void road_step(void) {
     // Decide if the road should be moved
     bool step = false;
-    road_y += (speed/SPEED_FACTOR);
+    road_y += speed/SPEED_FACTOR;
     if(road_y >= 1.0) {
         step = true;
         road_y = 0.0;
@@ -560,6 +611,168 @@ void road_step(void) {
             road_counter = 0;
         }
     }
+}
+
+/**
+ * Create the sprites which hold the bitmap information about each terrain type
+ **/
+void terrain_image_setup(void){
+    // Setup the tree bitmap
+    sprite_init(&terrain_image[TERRAIN_TREE], -1, -1, terrain_tree_width, terrain_tree_height, terrain_tree_image);
+    // Setup the sign bitmap
+    sprite_init(&terrain_image[TERRAIN_SIGN], -1, -1, terrain_sign_width, terrain_sign_height, terrain_sign_image);
+}
+
+/**
+ * Initialises the terrain array by setting each terrain sprite in the game world. 
+ **/
+void terrain_setup(void) {
+    terrain_image_setup();
+
+    // Add all of the terrain to the game world (need to feel the arrays before we can do collision checking)
+    for(int i=0; i<NUM_TERRAIN; i++) {
+        // Choose a type of terrain to spawn
+        int type = rand() % NUM_TERRAIN_TYPES;
+        // We don't care what the coordinates are for now
+        int x = -10;
+        int y = -20;
+        // Create the terrain sprite
+        sprite_init(&terrain[i], x, y, terrain_image[type].width, terrain_image[type].height, terrain_image[type].bitmap);
+    }
+
+    // Reset all of the terrain so they appear in the playing area 
+    for(int i=0; i<NUM_TERRAIN; i++) {
+        int y_bot = rand() % (LCD_Y - 3);
+        terrain_reset(i, y_bot);
+    }
+}
+
+/**
+ * Moves the specified terrain to the top of the screen. Will randomise the terrain type
+ * ybot - the sprite's bottom pixel y-coordinate
+ **/
+void terrain_reset(int index, int y_bot) {
+    // Choose a new terrain type
+    int type = rand() % NUM_TERRAIN_TYPES;
+    int width = terrain_image[type].width;
+    int height = terrain_image[type].height;
+
+    // Minimum space from the road the terrain can spawn
+    int padding = height / ROAD_CURVE_MIN;
+    // Place the terrain above the screen a random amount
+	int y = y_bot - height;
+
+    // Check if we'll place the terrain on the left or right side of the road
+	bool left = rand() % 2;
+    // Check if there is any space to place the terrain (due to the road curving)
+    if(left) {
+        // If there's no space in the left side of the road, place it on the right side
+        if(road[y_bot] - width - padding <= DASHBOARD_BORDER_X) {
+            left = false;
+        }
+    } else {
+        // If there's no space in the right side of the road, place it on the left side
+        if(road[y_bot] + road_width + width + padding >= LCD_X - 1) {
+            left = true;;
+        }
+    }
+    // Find the x coordinate for the new terrain
+	int x = -1 - width;
+	if(left) {
+		int min_x = DASHBOARD_BORDER_X + 1;
+		int max_x = road[y_bot] - width - padding - 1;
+		x = rand() % (max_x + 1 - min_x) + min_x;
+	} else {
+		int min_x = road[y_bot] + road_width + padding + 1;
+		int max_x = LCD_X - 2 - width;
+		x = rand() % (max_x + 1 - min_x) + min_x;
+	}
+
+    // Update the sprite's details
+    terrain[index].bitmap = terrain_image[type].bitmap;
+    terrain[index].x = x;
+    terrain[index].y = y;
+    terrain[index].width = width;
+    terrain[index].height = height;
+
+    // Check if there is any collision with other terrain
+    bool collision = false;
+	for(int i=0; i<NUM_TERRAIN; i++) {
+		// We don't want to check if it is colliding with itself
+		if(index != i) {
+			if(check_sprite_collided(terrain[index],terrain[i])) {
+				collision = true;
+			}
+		}
+	}
+    if(collision) {
+        // Place the terrain on the bottom of the screen
+        terrain[index].y = LCD_Y + 1;
+    }
+}
+
+
+/**
+ * Moves the terrain downwards proportionally to the current speed
+ **/
+void terrain_step(void) {
+    for(int i=0; i<NUM_TERRAIN; i++) {
+        terrain[i].y += speed / SPEED_FACTOR;
+        // Reset the terrain if it has gone out of bounds
+        if(terrain[i].y > LCD_Y) {
+            terrain_reset(i,0);
+        }
+    }
+}
+
+/**
+ * Checks if there is any terrain, hazard or fuel station colliding with the sprite.
+ **/
+bool check_collision(Sprite sprite) {
+	// Iterate through the terrain to see if there was a collision
+	for(int i=0; i<NUM_TERRAIN; i++) {
+		// We don't want to check if it is colliding with itself
+		if(&sprite != &terrain[i]) {
+			if(check_sprite_collided(sprite,terrain[i])) {
+				return true;
+			}
+		}
+	}
+    /**
+	// Iterate through the hazards to see if there was a collision
+	for(int i=0; i<max_hazards; i++) {
+		// We don't want to check if it is colliding with itself
+		if(!sprites_equal(sprite, hazards[i])) {
+			if(check_sprite_collided(sprite,hazards[i])) {
+				return true;
+			}
+		}
+	}
+
+	// Check if collides with fuel station
+	if(check_sprite_collided(sprite,fuel_station)) {
+		return true;
+	}
+    **/
+	return false;
+}
+
+/**
+ * Checks if the two sprites collide with each other
+ **/
+bool check_sprite_collided(Sprite sprite1, Sprite sprite2) {
+    // Check if both sprites are valid
+	if((&sprite1 != NULL) && (&sprite2 != NULL)) {
+		// Check if there is colllision in the x-axis
+		if(!((sprite1.x + sprite1.width <= sprite2.x) || (sprite1.x >= sprite2.x + sprite2.width))) {
+			// Check if there is collision in the y-axis
+			if(!((sprite1.y + sprite1.height < sprite2.y) || (sprite1.y > sprite2.y + sprite2.height))) {
+				return true;
+			}
+		}
+	}
+
+	return false;
 }
 
 /**
