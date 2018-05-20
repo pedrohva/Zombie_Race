@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <util/delay.h>
@@ -30,7 +31,7 @@
 #define STICK_DOWN          7
 
 // Determines the effect of the speed on the objects
-#define SPEED_FACTOR        (10.0)
+#define SPEED_FACTOR        (11.0)  // Must be greater than SPEED_MAX to avoid road sync issues
 #define SPEED_MIN           0      
 #define SPEED_MAX           10
 #define SPEED_OFFROAD_MAX   3
@@ -48,6 +49,9 @@
 
 // The rate at which the fuel decreases
 #define FUEL_FACTOR         (30.0)
+#define FUEL_MAX            (100.0)
+#define FUEL_STATION_MIN    90      // The minimum distance the fuel station can spawn
+#define FUEL_STAION_MAX     130
 // The rate at which distance increases
 #define DIST_FACTOR         (80.0)
 
@@ -96,7 +100,7 @@ Sprite player;
 // Road
 uint8_t road[LCD_Y];            // The x-coordinates of each road piece
 int road_width = 16;   
-double road_y = 0.0;             // Used to decide when to move the road down (so it matches speed of player)
+double road_y;                  // Used to make sure the road stays synced with the other objects in the playing field
 uint8_t road_counter;           // Counts how many steps the road has taken before being moved horizontally
 uint8_t road_curve;             // This decides how many times the road must move before it is moved horizontally
 int road_direction;
@@ -105,6 +109,10 @@ uint8_t road_section_length;    // How many steps the road has taken in the curr
 // Terrain
 Sprite terrain[NUM_TERRAIN];                // Array that contains all of the terrain objects in the game
 Sprite terrain_image[NUM_TERRAIN_TYPES];    // Contains sprite information about each type of terrain
+
+// Fuel station
+Sprite fuel_station;
+double fuel_station_counter;   // Counts down to when the fuel station can spawn again
 
 /**
  * Holds information regarding what screen the player should be seeing right now. 
@@ -153,6 +161,16 @@ uint8_t terrain_sign_image[] = {
 int terrain_sign_width = 5;
 int terrain_sign_height = 4;
 
+uint8_t fuel_station_image[] = {
+    0b11111111,
+    0b10000001,
+    0b10000001,
+    0b10000001,
+    0b11111111,
+};
+int fuel_station_width = 8;
+int fuel_station_height = 5;
+
 /** ---------------------------- FUNCTION DECLARATIONS ---------------------------- **/
 // Helper functions
 double elapsed_time(uint16_t timer_counter);
@@ -192,6 +210,10 @@ void terrain_image_setup(void);
 void terrain_setup(void);
 void terrain_reset(int index, int y_bot);
 void terrain_step(void);
+
+// Fuel functions
+void fuel_station_reset(void);
+void fuel_station_step(void);
 
 // Collision detection
 bool check_collision(Sprite sprite);
@@ -379,12 +401,8 @@ void game_screen_update(void) {
     if(!game_paused) {
         // Check if we ran out of fuel
         if(fuel < 1) {
-            fuel = 0.01;
+            fuel = 0.0;
         }
-
-        // Step through our objects
-        road_step();
-        terrain_step();
 
         // Deals with input that controls horizontal movement
         if(stick_left_state) {
@@ -398,8 +416,8 @@ void game_screen_update(void) {
             // If breaking
             if(speed > 0) {
                 // Calculate rate to decrease speed in order to go from 10 to 0 in 2 seconds
-                double rate = (5.0) / loop_freq;
-                speed -= 10*rate;
+                double rate = 10.0 / (loop_freq * 2);
+                speed -= rate;
                 // Protect against overshoot
                 if(speed < 1) {
                     speed = 0;
@@ -409,8 +427,8 @@ void game_screen_update(void) {
             // If accelerating
             if(speed < SPEED_MAX) {
                 // Calculate rate to increase speed in order to go from 1 to 10 in 5 seconds
-                double rate = (9.0/2.0) / loop_freq;
-                speed += 10*rate;
+                double rate = (10.0 - 1.0) / (5.0 * loop_freq);
+                speed += rate;
                 // Protect against overshoot
                 if(speed > SPEED_MAX-1) {
                     speed = SPEED_MAX;
@@ -419,15 +437,15 @@ void game_screen_update(void) {
         }else { // If no button is being pressed
             // Decrease speed if above 1 or increase to 1 if below
             if(speed > 1) {
-                double rate = (9.0/3.0) / loop_freq;
-                speed -= 9.0*rate;
+                double rate = 9.0 / loop_freq;
+                speed -= rate;
                 // Protect against overshoot
                 if(speed < 1) {
                     speed = 1;
                 }
             }else {
-                double rate = (1.0/2.5) / loop_freq;
-                speed += 1.0*rate;
+                double rate = 1.0 / loop_freq;
+                speed += rate;
                 // Protect against overshoot
                 if(speed > 1) {
                     speed = 1;
@@ -439,6 +457,11 @@ void game_screen_update(void) {
         fuel -= speed/FUEL_FACTOR;
         // Update the distance
         distance += speed/DIST_FACTOR;
+
+        // Step through our objects
+        terrain_step();
+        fuel_station_step();
+        road_step();
     }
 }
 
@@ -468,6 +491,8 @@ void game_screen_draw(void) {
             draw_pixel(road[y], y, FG_COLOUR);
             draw_pixel(road[y]+road_width, y, FG_COLOUR);
         }
+        
+        sprite_draw(&fuel_station);
     }
 }
 
@@ -497,14 +522,15 @@ void game_screen_setup(void) {
     
     // Setup the initial car information
     condition = 100;
-    fuel = 100;
-    speed = 10;
+    fuel = FUEL_MAX;
+    speed = SPEED_MAX;
     distance = 0;
 
     // Reset the game time
     game_timer_counter = 0;
 
     // Setup the road
+    road_y = 0.0;
     int road_x = ((LCD_X-DASHBOARD_BORDER_X)/2) - (road_width/2) + DASHBOARD_BORDER_X - 1;
     for(int y=0; y<LCD_Y; y++) {
         road[y] = road_x;
@@ -512,8 +538,13 @@ void game_screen_setup(void) {
     road_counter = 0;
     road_curve = ROAD_CURVE_MIN;
     road_direction = ROAD_STRAIGHT;
-    road_section_length = rand() % (ROAD_SECTION_MAX + 1 - ROAD_SECTION_MIN) + ROAD_SECTION_MIN;;
+    road_section_length = rand() % (ROAD_SECTION_MAX + 1 - ROAD_SECTION_MIN) + ROAD_SECTION_MIN;
     
+    // Decide when to spawn the first fuel station
+    fuel_station_counter = rand() % (FUEL_STAION_MAX + 1 - FUEL_STATION_MIN) + FUEL_STATION_MIN;
+    // Create the fuel station sprite
+    sprite_init(&fuel_station, -10, -10, fuel_station_width, fuel_station_height, fuel_station_image);
+
     // Setup the player
     player_car_setup();
     // Setup the obstacles
@@ -563,10 +594,16 @@ void player_car_move(double dx) {
 void road_step(void) {
     // Decide if the road should be moved
     bool step = false;
-    road_y += speed/SPEED_FACTOR;
-    if(road_y >= 1.0) {
+    double dy = speed / SPEED_FACTOR;
+    int old_y = round(road_y);
+    road_y += dy;
+    int y = round(road_y);
+    if(y > old_y) {
         step = true;
-        road_y = 0.0;
+    }
+
+    if(road_y > LCD_Y) {
+        road_y = 0;
     }
 
     if(step) {
@@ -705,6 +742,11 @@ void terrain_reset(int index, int y_bot) {
 			}
 		}
 	}
+    // Check if there is collision with the fuel station
+    if(check_sprite_collided(terrain[index], fuel_station)) {
+        collision = true;   
+    }
+
     if(collision) {
         // Place the terrain on the bottom of the screen
         terrain[index].y = LCD_Y + 1;
@@ -723,6 +765,73 @@ void terrain_step(void) {
             terrain_reset(i,0);
         }
     }
+}
+
+/**
+ * Chooses a new location at the top of the screen to spawn the fuel station, will also make 
+ * sure the road remains straight in the area. 
+ **/
+void fuel_station_reset(void) {
+    // Add the fuel station a bit above the screen
+    double y = 0 - fuel_station_height - 3;
+ 
+    // Keep the road straight while the fuel station is spawned
+    road_direction = ROAD_STRAIGHT;
+    road_section_length = fuel_station_height + 6;
+
+    // Choose the side of the road to spawn
+    bool left = rand() % 2;
+    if(left) {
+        // If there's no space in the left side of the road, place it on the right side
+        if(road[0] - fuel_station_width <= DASHBOARD_BORDER_X) {
+            left = false;
+        }
+    } else {
+        // If there's no space in the right side of the road, place it on the left side
+        if(road[0] + road_width + fuel_station_width >= LCD_X - 1) {
+            left = true;;
+        }
+    }
+
+    // Choose the x-coordinate depending on which side of the road we're spawning
+    double x;
+    if(left) {
+        x = road[0] - fuel_station_width;
+    } else {
+        x = road[0] + road_width + 1;
+    }
+
+    // Change the location of the fuel station
+    fuel_station.x = x;
+    fuel_station.y = y;
+
+    // Check if there is a terrain in the way and remove it
+    for(int i=0; i<NUM_TERRAIN; i++) {
+        if(check_sprite_collided(fuel_station, terrain[i])) {
+            terrain_reset(i, 0);
+        }
+    }
+}
+
+/**
+ * Scrolls the fuel station sprite down, checks if the car can be refuelled and spawns the 
+ * fuel station when necessary
+ **/
+void fuel_station_step(void) {
+    fuel_station_counter--;
+
+    // Check if it's time to respawn the new fuel station
+    if(fuel_station_counter < 0) {
+        // Make sure the current fuel station has already gone out of bounds
+        if(fuel_station.y > LCD_Y) {
+            // Reset the location of the fuel station
+            fuel_station_reset();
+            fuel_station_counter = rand() % (FUEL_STAION_MAX + 1 - FUEL_STATION_MIN) + FUEL_STATION_MIN;
+        }
+    }
+
+    // Scroll the fuel station
+    fuel_station.y += speed / SPEED_FACTOR;
 }
 
 /**
@@ -748,12 +857,12 @@ bool check_collision(Sprite sprite) {
 			}
 		}
 	}
-
+    **/
 	// Check if collides with fuel station
 	if(check_sprite_collided(sprite,fuel_station)) {
 		return true;
 	}
-    **/
+
 	return false;
 }
 
