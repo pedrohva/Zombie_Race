@@ -255,6 +255,7 @@ void refuel(void);
 // Collision detection
 bool check_collision(Sprite sprite);
 bool check_sprite_collided(Sprite sprite1, Sprite sprite2);
+void handle_collision(void);
 
 // Teensy functions
 void teensy_setup(void);
@@ -484,6 +485,16 @@ void game_screen_update(void) {
         // Update the distance
         distance += speed/DIST_FACTOR;
 
+        // Check if the car has collided with an obstacle
+        if(check_collision(player)) {
+			// Check if the car has collided with a fuel station
+			if(check_sprite_collided(player,fuel_station)) {
+				//change_state(GAME_OVER_SCREEN);
+			} else {
+				handle_collision();
+			}
+		}
+
         // Refuel the car
         refuel();
 
@@ -606,7 +617,11 @@ void player_car_setup(void) {
  * Add the player to the middle of the road again
  **/
 void player_car_reset(void) {
+    int y = LCD_Y - car_height - 2;
+    int x = (road_width/2) + road[y] - (car_width/2) + 1;
 
+    player.x = x;
+    player.y = y;
 }
 
 /**
@@ -1028,17 +1043,17 @@ bool check_collision(Sprite sprite) {
 			}
 		}
 	}
-    /**
+
 	// Iterate through the hazards to see if there was a collision
-	for(int i=0; i<max_hazards; i++) {
+	for(int i=0; i<NUM_HAZARD; i++) {
 		// We don't want to check if it is colliding with itself
-		if(!sprites_equal(sprite, hazards[i])) {
-			if(check_sprite_collided(sprite,hazards[i])) {
+		if(&sprite != &hazard[i]) {
+			if(check_sprite_collided(sprite,hazard[i])) {
 				return true;
 			}
 		}
 	}
-    **/
+
 	// Check if collides with fuel station
 	if(check_sprite_collided(sprite,fuel_station)) {
 		return true;
@@ -1063,6 +1078,28 @@ bool check_sprite_collided(Sprite sprite1, Sprite sprite2) {
 	}
 
 	return false;
+}
+
+/**
+ * Changes the speed to zero, reduces car condition and resets the player to the middle of the road
+ **/
+void handle_collision(void) {
+	speed = 0;
+	fuel = FUEL_MAX;
+	condition -= 20;
+	if(condition <= 0) {
+		//change_state(GAME_OVER_SCREEN);
+	}
+	
+    // Put the player in the middle of the road again
+    player_car_reset();
+
+	// Remove any hazards up to a car length above the player
+	for(int i=0; i<NUM_HAZARD; i++) {
+		if(hazard[i].y + hazard[i].height > player.y - player.height) {
+            hazard_reset(i, 0);
+        }
+	}
 }
 
 /**
