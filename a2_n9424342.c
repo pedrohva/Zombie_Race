@@ -65,6 +65,15 @@
 #define TERRAIN_TREE        0
 #define TERRAIN_SIGN        1
 
+// The different hazard types
+#define NUM_HAZARD          2
+#define NUM_HAZARD_TYPES    2
+#define HAZARD_TRIANGLE     0
+#define HAZARD_SPIKE        1
+
+// The chance each step that a hazard that is out of bounds spawns again
+#define HAZARD_SPAWN_CHANCE 15
+
 // Controls - Used to check if any button/joystick has been activated (don't check PINs)
 uint8_t button_left_state;
 uint8_t button_right_state;
@@ -109,6 +118,10 @@ uint8_t road_section_length;    // How many steps the road has taken in the curr
 // Terrain
 Sprite terrain[NUM_TERRAIN];                // Array that contains all of the terrain objects in the game
 Sprite terrain_image[NUM_TERRAIN_TYPES];    // Contains sprite information about each type of terrain
+
+// Hazards
+Sprite hazard[NUM_HAZARD];
+Sprite hazard_image[NUM_HAZARD_TYPES];
 
 // Fuel station
 Sprite fuel_station;
@@ -162,6 +175,21 @@ uint8_t terrain_sign_image[] = {
 int terrain_sign_width = 5;
 int terrain_sign_height = 4;
 
+uint8_t hazard_triangle_image[] = {
+    0b00100000,
+    0b01110000,
+    0b11111000,
+};
+int hazard_triangle_width = 5;
+int hazard_triangle_height = 3;
+
+uint8_t hazard_spike_image[] = {
+    0b10101000,
+    0b11111000,
+};
+int hazard_spike_width = 5;
+int hazard_spike_height = 2;
+
 uint8_t fuel_station_image[] = {
     0b11111111,
     0b10000001,
@@ -213,6 +241,10 @@ void terrain_image_setup(void);
 void terrain_setup(void);
 void terrain_reset(int index, int y_bot);
 void terrain_step(void);
+void hazard_image_setup(void);
+void hazard_setup(void);
+void hazard_reset(int index, int y_bot);
+void hazard_step(void);
 
 // Fuel functions
 void fuel_station_reset(void);
@@ -457,6 +489,7 @@ void game_screen_update(void) {
 
         // Step through our objects
         terrain_step();
+        hazard_step();
         fuel_station_step();
         road_step();
     }
@@ -481,6 +514,11 @@ void game_screen_draw(void) {
         // Draw the terrain
         for(int i=0; i<NUM_TERRAIN; i++) {
             sprite_draw(&terrain[i]);
+        }
+
+        // Draw the hazards
+        for(int i=0; i<NUM_HAZARD; i++) {
+            sprite_draw(&hazard[i]);
         }
         
         // Draw the road
@@ -551,6 +589,7 @@ void game_screen_setup(void) {
     player_car_setup();
     // Setup the obstacles
     terrain_setup();
+    hazard_setup();
 }
 
 /**
@@ -668,7 +707,7 @@ void terrain_image_setup(void){
 void terrain_setup(void) {
     terrain_image_setup();
 
-    // Add all of the terrain to the game world (need to feel the arrays before we can do collision checking)
+    // Add all of the terrain to the game world (need to fill the arrays before we can do collision checking)
     for(int i=0; i<NUM_TERRAIN; i++) {
         // Choose a type of terrain to spawn
         int type = rand() % NUM_TERRAIN_TYPES;
@@ -687,7 +726,7 @@ void terrain_setup(void) {
 }
 
 /**
- * Moves the specified terrain to the top of the screen. Will randomise the terrain type
+ * Moves the specified terrain to the y-coordinate give but will randomise the x-coordinate. Will randomise the terrain type
  * ybot - the sprite's bottom pixel y-coordinate
  **/
 void terrain_reset(int index, int y_bot) {
@@ -698,7 +737,7 @@ void terrain_reset(int index, int y_bot) {
 
     // Minimum space from the road the terrain can spawn
     int padding = height / ROAD_CURVE_MIN;
-    // Place the terrain above the screen a random amount
+    // Place the terrain at the y-coordinate
 	int y = y_bot - height;
 
     // Check if we'll place the terrain on the left or right side of the road
@@ -765,6 +804,101 @@ void terrain_step(void) {
         // Reset the terrain if it has gone out of bounds
         if(terrain[i].y > LCD_Y) {
             terrain_reset(i,0);
+        }
+    }
+}
+
+/**
+ * Create the sprites which hold the bitmap information about each hazard type
+ **/
+void hazard_image_setup(void){
+    // Setup the tree bitmap
+    sprite_init(&hazard_image[HAZARD_TRIANGLE], -1, -1, hazard_triangle_width, hazard_triangle_height, hazard_triangle_image);
+    // Setup the sign bitmap
+    sprite_init(&hazard_image[HAZARD_SPIKE], -1, -1, hazard_spike_width, hazard_spike_height, hazard_spike_image);
+}
+
+/**
+ * Initialises the hazard array by setting each hazard sprite in the game world. 
+ **/
+void hazard_setup(void) {
+    hazard_image_setup();
+
+    // Add all of the hazards to the game world (need to fill the arrays before we can do collision checking)
+    for(int i=0; i<NUM_HAZARD; i++) {
+        // Choose a type of hazard to spawn
+        int type = rand() % NUM_HAZARD_TYPES;
+        // We don't care what the coordinates are for now
+        int x = -10;
+        int y = -20;
+        // Create the hazard sprite
+        sprite_init(&hazard[i], x, y, hazard_image[type].width, hazard_image[type].height, hazard_image[type].bitmap);
+    }
+
+    // Reset all of the hazards so they appear in the playing area 
+    for(int i=0; i<NUM_HAZARD; i++) {
+        int y_bot = rand() % (LCD_Y - 3);
+        hazard_reset(i, y_bot);
+    }
+}
+
+/**
+ * Moves the specified hazard to the y coordinate given but will randomise the x-coordinate. Will randomise the hazard type
+ * ybot - the sprite's bottom pixel y-coordinate
+ **/
+void hazard_reset(int index, int y_bot) {
+    // Choose a new hazard type
+    int type = rand() % NUM_HAZARD_TYPES;
+    int width = hazard_image[type].width;
+    int height = hazard_image[type].height;
+
+    // Minimum space from the road the hazard can spawn
+    int padding = 1;
+    // Place the terrain at the y-coordinate
+	int y = y_bot - height;
+
+    // Find the x coordinate for the new hazard
+    int min_x = road[y_bot] + padding; 
+    int max_x = road[y_bot] + road_width - width - padding;
+	int x = rand() % (max_x + 1 - min_x) + min_x;
+    
+    // Update the sprite's details
+    hazard[index].bitmap = hazard_image[type].bitmap;
+    hazard[index].x = x;
+    hazard[index].y = y;
+    hazard[index].width = width;
+    hazard[index].height = height;
+
+    // Check if there is any collision with other hazards
+    bool collision = false;
+	for(int i=0; i<NUM_HAZARD; i++) {
+		// We don't want to check if it is colliding with itself
+		if(index != i) {
+			if(check_sprite_collided(hazard[index],hazard[i])) {
+				collision = true;
+			}
+		}
+	}
+
+    if(collision) {
+        // Place the hazards on the bottom of the screen
+        hazard[index].y = LCD_Y + 1;
+    }
+}
+
+/**
+ * Moves the hazards downwards proportionally to the current speed
+ **/
+void hazard_step(void) {
+    for(int i=0; i<NUM_HAZARD; i++) {
+        hazard[i].y += speed / SPEED_FACTOR;
+        // Reset the terrain if it has gone out of bounds
+        if(hazard[i].y > LCD_Y) {
+            int roll = rand() % 100;
+            // Randomise whether it will actually spawn
+            if(roll < HAZARD_SPAWN_CHANCE) {
+                hazard_reset(i,0);
+            }
         }
     }
 }
