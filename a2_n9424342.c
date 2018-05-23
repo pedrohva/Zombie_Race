@@ -135,7 +135,7 @@ bool refuelling;
 enum GameScreens {
 	START_SCREEN,
 	GAME_SCREEN,
-	GAME_OVER_SCREEN,
+	GAMEOVER_SCREEN,
 	HIGHSCORE_SCREEN,
 	EXIT_SCREEN
 } game_screen;
@@ -227,6 +227,10 @@ void game_screen_update(void);
 void game_screen_draw(void);
 void dashboard_draw(void);
 void game_screen_setup(void);
+
+// GAMEOVER_SCREEN
+void gameover_screen_update(void);
+void gameover_screen_draw(void);
 
 // Player location and movement functions
 void player_car_setup(void);
@@ -330,6 +334,9 @@ void update(void) {
         case GAME_SCREEN:
             game_screen_update();
             break;
+        case GAMEOVER_SCREEN:
+            gameover_screen_update();
+            break;
         default:
             break;
     }
@@ -348,6 +355,9 @@ void draw(void) {
             break;
         case GAME_SCREEN:
             game_screen_draw();
+            break;
+        case GAMEOVER_SCREEN:
+            gameover_screen_draw();
             break;
         default:
             break;
@@ -373,8 +383,6 @@ void draw_formatted(int x, int y, char * buffer, int buffer_size, const char * f
  * to that screen.
  **/
 void change_screen(int new_screen) {
-	//purge_input_buffer();
-
 	// Decide if we need to initiate the screen before switching to it
 	switch(new_screen) {
 		case GAME_SCREEN:
@@ -427,8 +435,8 @@ void game_screen_update(void) {
 
     if(!game_paused) {
         // Check if we ran out of fuel
-        if(fuel < 1) {
-            fuel = 0.0;
+        if(fuel <= 0) {
+            change_screen(GAMEOVER_SCREEN);
         }
 
         // Deals with input that controls horizontal movement
@@ -489,7 +497,7 @@ void game_screen_update(void) {
         if(check_collision(player)) {
 			// Check if the car has collided with a fuel station
 			if(check_sprite_collided(player,fuel_station)) {
-				//change_state(GAME_OVER_SCREEN);
+				change_screen(GAMEOVER_SCREEN);
 			} else {
 				handle_collision();
 			}
@@ -602,6 +610,38 @@ void game_screen_setup(void) {
     terrain_setup();
     hazard_setup();
 }
+
+/**
+ * Wait for the player to indicate if they want to play again, return to title screen
+ * or quit the game
+ **/
+void gameover_screen_update(void) {
+    // If the left button is pressed, go to title screen
+    if(button_left_state) {
+        change_screen(START_SCREEN);
+    }
+
+    // If the right button is pressed, start a new game straight away
+    if(button_right_state) {
+        change_screen(GAME_SCREEN);
+    }
+
+    // If the centre joystick button is pressed, exit the game
+    if(stick_centre_state) {
+        exit(0);
+    }
+}
+
+/**
+ * Draw the prompts for the player to decide what to prooced to
+ **/
+void gameover_screen_draw(void) {
+    draw_string(18, 2, "Game Over", FG_COLOUR);
+    draw_string(1, LCD_Y-30, "SW2 for Splash", FG_COLOUR);
+    draw_string(1, LCD_Y-20, "SW3 for Game", FG_COLOUR);
+    draw_string(1, LCD_Y-10, "SW1 for Exit", FG_COLOUR);
+}
+
 
 /**
  * Place the player's car sprite in the middle of the road
@@ -852,7 +892,7 @@ void hazard_setup(void) {
 
     // Reset all of the hazards so they appear in the playing area 
     for(int i=0; i<NUM_HAZARD; i++) {
-        int y_bot = rand() % (LCD_Y - 3);
+        int y_bot = rand() % (LCD_Y - 20);
         hazard_reset(i, y_bot);
     }
 }
@@ -1088,7 +1128,7 @@ void handle_collision(void) {
 	fuel = FUEL_MAX;
 	condition -= 20;
 	if(condition <= 0) {
-		//change_state(GAME_OVER_SCREEN);
+		change_screen(GAMEOVER_SCREEN);
 	}
 	
     // Put the player in the middle of the road again
