@@ -31,7 +31,7 @@
 #define STICK_DOWN          7
 
 // Determines the effect of the speed on the objects
-#define SPEED_FACTOR        (11.0)  // Must be greater than SPEED_MAX to avoid road sync issues
+#define SPEED_FACTOR        (10.0)  // Must be greater than SPEED_MAX to avoid road sync issues
 #define SPEED_MIN           0      
 #define SPEED_MAX           10
 #define SPEED_OFFROAD_MAX   3
@@ -113,6 +113,7 @@ Sprite terrain_image[NUM_TERRAIN_TYPES];    // Contains sprite information about
 // Fuel station
 Sprite fuel_station;
 double fuel_station_counter;   // Counts down to when the fuel station can spawn again
+bool refuelling;
 
 /**
  * Holds information regarding what screen the player should be seeing right now. 
@@ -166,10 +167,13 @@ uint8_t fuel_station_image[] = {
     0b10000001,
     0b10000001,
     0b10000001,
+    0b10000001,
+    0b10000001,
+    0b10000001,
     0b11111111,
 };
 int fuel_station_width = 8;
-int fuel_station_height = 5;
+int fuel_station_height = 8;
 
 /** ---------------------------- FUNCTION DECLARATIONS ---------------------------- **/
 // Helper functions
@@ -181,7 +185,6 @@ void update(void);
 void draw(void);
 
 // General draw functions
-void draw_borders(void);
 void draw_formatted(int x, int y, char * buffer, int buffer_size, const char * format, ...);
 
 // Screen manager
@@ -214,6 +217,8 @@ void terrain_step(void);
 // Fuel functions
 void fuel_station_reset(void);
 void fuel_station_step(void);
+void check_refuel(void);
+void refuel(void);
 
 // Collision detection
 bool check_collision(Sprite sprite);
@@ -315,18 +320,7 @@ void draw(void) {
             break;
     }
 
-    draw_borders();
     show_screen();
-}
-
-/**
- * Draw lines around the edges of the LCD
- **/
-void draw_borders(void) {
-    draw_line(0,0,LCD_X-1,0, FG_COLOUR);
-	draw_line(0,LCD_Y-1,LCD_X-1,LCD_Y-1, FG_COLOUR);
-	draw_line(0,0,0,LCD_Y-1,FG_COLOUR);
-	draw_line(LCD_X-1,0,LCD_X-1,LCD_Y-1,FG_COLOUR);
 }
 
 /**
@@ -416,7 +410,7 @@ void game_screen_update(void) {
             // If breaking
             if(speed > 0) {
                 // Calculate rate to decrease speed in order to go from 10 to 0 in 2 seconds
-                double rate = 10.0 / (loop_freq * 2);
+                double rate = 10.0 / (loop_freq);
                 speed -= rate;
                 // Protect against overshoot
                 if(speed < 1) {
@@ -427,7 +421,7 @@ void game_screen_update(void) {
             // If accelerating
             if(speed < SPEED_MAX) {
                 // Calculate rate to increase speed in order to go from 1 to 10 in 5 seconds
-                double rate = (10.0 - 1.0) / (5.0 * loop_freq);
+                double rate = (10.0 - 1.0) / (loop_freq);
                 speed += rate;
                 // Protect against overshoot
                 if(speed > SPEED_MAX-1) {
@@ -457,6 +451,9 @@ void game_screen_update(void) {
         fuel -= speed/FUEL_FACTOR;
         // Update the distance
         distance += speed/DIST_FACTOR;
+
+        // Refuel the car
+        refuel();
 
         // Step through our objects
         terrain_step();
@@ -501,16 +498,21 @@ void game_screen_draw(void) {
  **/
 void dashboard_draw(void) {
     // Draw the border separating from the playable area
-    draw_line(DASHBOARD_BORDER_X, 1, DASHBOARD_BORDER_X, LCD_Y-1, FG_COLOUR);
+    draw_line(DASHBOARD_BORDER_X, 0, DASHBOARD_BORDER_X, LCD_Y-1, FG_COLOUR);
 
     // Draw the car's information
     char buffer[80];
-    draw_string(2, 2, "H:", FG_COLOUR);
-    draw_formatted(11, 2, buffer, sizeof(buffer), "%d", condition);
-    draw_string(2, 12, "F:", FG_COLOUR);
-    draw_formatted(11, 12, buffer, sizeof(buffer), "%.0f", fuel);
-    draw_string(2, 22, "S:", FG_COLOUR);
-    draw_formatted(11, 22, buffer, sizeof(buffer), "%.0f", speed);
+    draw_string(1, 2, "H:", FG_COLOUR);
+    draw_formatted(10, 2, buffer, sizeof(buffer), "%d", condition);
+    draw_string(1, 12, "F:", FG_COLOUR);
+    draw_formatted(10, 12, buffer, sizeof(buffer), "%.0f", fuel);
+    draw_string(1, 22, "S:", FG_COLOUR);
+    draw_formatted(10, 22, buffer, sizeof(buffer), "%.0f", speed);
+
+    // Warning lights
+    if(refuelling) {
+        draw_char(1, 32, 'R', FG_COLOUR);
+    }
 }
 
 /**
@@ -796,9 +798,9 @@ void fuel_station_reset(void) {
     // Choose the x-coordinate depending on which side of the road we're spawning
     double x;
     if(left) {
-        x = road[0] - fuel_station_width;
+        x = road[0] - fuel_station_width + 1;
     } else {
-        x = road[0] + road_width + 1;
+        x = road[0] + road_width;
     }
 
     // Change the location of the fuel station
@@ -832,6 +834,51 @@ void fuel_station_step(void) {
 
     // Scroll the fuel station
     fuel_station.y += speed / SPEED_FACTOR;
+}
+
+/**
+ * Checks if the car is next to a fuel station while travelling below the specified speed. 
+ **/
+void check_refuel(void) {
+    // Round the coordinates of each sprite so we can equate them
+    int x = round(player.x);
+    int y = round(player.y);
+    int fuelx = round(fuel_station.x);
+    int fuely = round(fuel_station.y);
+
+	// Check if the player is directly to the left or right of the fuel station
+	if((x + player.width == fuelx) || (fuelx + fuel_station.width == x)) {
+        // Check if the player is inside the bounds of the fuel station
+        if((y >= fuely) && (y + player.height <= fuely + fuel_station.height)) {
+            if((speed < 3) && button_left_state) {
+			    refuelling = true;
+		        speed = 0;
+		    }
+        }
+	}
+}
+
+/**
+ * Refuels the car in increments. Full fuel tank will be achieved in 3 seconds
+ **/
+void refuel(void) {
+	if(!refuelling) {
+		check_refuel();
+	} else {
+		// Cancel refuelling if the car starts moving again or brake is released
+		if(speed > 0 || !button_left_state) {
+			refuelling = false;
+		} else {
+            // Increment the fuel value with a rate that would go 0-100 in 3 seconds
+            fuel += FUEL_MAX/loop_freq;
+
+            // Prevent overshoot and cancel fuelling if reached max fuel
+            if(fuel > FUEL_MAX) {
+                fuel = FUEL_MAX;
+                refuelling = false;
+            }
+        }
+	}
 }
 
 /**
