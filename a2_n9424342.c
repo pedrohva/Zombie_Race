@@ -507,6 +507,10 @@ void game_screen_update(void) {
         }else if(((prev_stick_down_state == 0) && (stick_down_state != 0))) {
             game_state_load();
         }
+
+        // Test: Paused View
+        //char buf[100];
+        //usb_send_message(DEBUG, 2, buf, 100, "Program time: %.3f\nGame time: %.3f\n%d\n", elapsed_time(loop_counter), time_paused, 0);
     }
 }
 
@@ -525,6 +529,9 @@ void game_screen_draw(void) {
         draw_formatted(30, 12, buffer, sizeof(buffer), "%.3f", time_paused);
         draw_string(30, 22, "DISTANCE:", FG_COLOUR);
         draw_formatted(30, 32, buffer, sizeof(buffer), "%d", distance);
+
+        // Test: Paused View
+        //usb_send_message(DEBUG, 2, buffer, 80, "Time step: %.3f\nDistance: %d\n%d\n", time_paused, distance, 0);
     } else {
         // Draw the terrain
         for(int i=0; i<NUM_TERRAIN; i++) {
@@ -568,8 +575,8 @@ void dashboard_draw(void) {
     }
 
     // Test: Dashboard
-    char buf[100];
-    usb_send_message(DEBUG, 4, buf, 100, "Timestep: %.3f\nCondition: %d\nFuel: %d\nSpeed: %.0f\n%d\n", elapsed_time(game_timer_counter), condition, fuel, speed, 0);
+    //char buf[100];
+    //usb_send_message(DEBUG, 4, buf, 100, "Timestep: %.3f\nCondition: %d\nFuel: %d\nSpeed: %.0f\n%d\n", elapsed_time(game_timer_counter), condition, fuel, speed, 0);
 }
 
 /**

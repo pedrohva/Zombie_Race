@@ -359,6 +359,7 @@ Timestep	& Condition	& Fuel		& Speed	& Test result	\\ \hline
 21.383	& 40		& 86		& 1		& Pass	\\ \hline
 \end{tabular}
 \end{center}
+All the tests passing mean that the expected values (the ones in the table and shown in the server) match the values seen in the dashboard.
 
 \clearpage
 
@@ -380,16 +381,97 @@ The information that is displayed in the Paused View. These variables are modife
 	// Line
 	uint8_t game_paused;
 \end{lstlisting}
-
+Determines if the game's Paused View should be active or not. Modified by the centre Joystick.
 \begin{lstlisting}[style=CStyle]
 	// Line
 	double time_paused;
 \end{lstlisting}
-
+The return value from \lstinline{elapsed_time(game_timer_counter)}. The value is set when the game is paused to avoid the thrid decimal point of the time value fluctuating widly due to floating point precision.
 \begin{lstlisting}[style=CStyle]
-	// Line
+	// Lines
 	uint8_t stick_centre_state;
 	uint8_t prev_stick_centre_state;
+\end{lstlisting}
+\emph{game\_paused} is only toggled when the middle joystick is clicked and just held. This avoid the game pausing and un-pausing multiple times when the user only intended to pause or unpause once with one click. 
+\newline
+
+\subsection*{Functions}
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	double elapsed_time(uint16_t timer_counter)
+\end{lstlisting}
+Used to get the time since the game started in seconds. Discussed in more detail in \emph{Timer and volatile data}.
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	void game_screen_update(void)
+\end{lstlisting}
+Checks if the middle joystick (SW1) has been clicked in order to toggle \emph{game\_paused}. Will also get the time that the game was paused.
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	void game_screen_draw(void)
+\end{lstlisting}
+If the game is paused, instead of drawing the game screen as usual, it will draw the car and display the stats required. The dashboard is also drawn in order to display as much information as possible about the game.
+\newpage
+
+\subsection*{Testing}
+The tests for this section will also incorporate a mix of debugging and visual analysis. For every test plan, the data sent to the server will be verified with the data being displayed in Paused View to make sure they match. The following test plans were developed to ensure full functionality of this section: 
+\begin{itemize}
+	\item Passage of time is correct. Game time does not increase when paused
+	\item Distance covered is relative to the speed 
+	\item Multiple pause-unpause-pause commands
+\end{itemize}
+\subsubsection*{Test Case: Passage of time is correct. Game time does not increase when paused}
+\begin{center}
+\begin{tabular}{ c c c c }
+Game time	& Expected game time	& Comments									& Test result	\\ \hline
+1.092		& - 				& SW1 is pressed to pause the game					& - 		\\
+1.092		& 1.092			& No inputs are given, verify time doesn't change after 5 seconds  & Pass	\\
+6.714		& \textasciitilde 6		& Game is run for 5 seconds then paused, verify time changes	& Pass	\\ \hline
+\end{tabular}
+\end{center}
+\subsubsection*{Test Case: Distance covered is relative to the speed}
+The max speed is adjusted by using Pot0 to improve accuracy (only need to hold accelerator instead of trying to maintain correct speed). The game is restarted after every attempt so the time step can show the amount of time travelled at that speed.
+\begin{center}
+\begin{tabular}{ c c c c c }
+Timestep	& Distance	& Expected distance	& Speed	& Test result \\ \hline
+0.140		& 0		& 0				& -		& Pass	\\
+5.325		& 28		& - 				& 10		& Pass	\\
+5.212		& 20		& \verb|<|28		& 6		& Pass	\\
+5.906		& 11		& \verb|<|20		& 3		& Pass	\\
+5.525		& 0		& 0				& 0		& Pass	\\
+\end{tabular}
+\end{center}
+
+\subsubsection*{Multiple pause-unpause-pause commands}
+The center joystick button is pressed every 5 seconds in order to verify that the time moves or stays constant depending on the state of the game. 
+\begin{center}
+\begin{tabular}{ c c c c c }
+Timestep	& Expected timestep	& Paused	& Test result	\\ \hline
+4.653		& 5				& No		& Pass	\\
+4.653		& 4.653			& Yes		& Pass	\\
+10.265	& 10				& No		& Pass	\\
+10.265	& 10.265			& Yes		& Pass	\\ \hline
+\end{tabular}
+\end{center}
+\clearpage
+
+%----------------------------------------------------------------------------------------
+%	Horizontal Movement
+%----------------------------------------------------------------------------------------
+\section{Horizontal Movement}
+When the user moves the Joystick to the left or right, the car will also move in that direction. The car is unable to move when the speed is zero or if by doing so, it would go out of bounds to the right of the screen or move into the dashboard area.
+
+\subsection*{Globals}
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	uint8_t stick_left_state;
+	uint8_t stick_right_state;
+\end{lstlisting}
+
+\subsection*{Functions}
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	double elapsed_time(uint16_t timer_counter)
 \end{lstlisting}
 
 \clearpage
