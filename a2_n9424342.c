@@ -540,7 +540,10 @@ void game_screen_draw(void) {
         //usb_send_message(DEBUG, 5, buffer, 80, "Time step: %.3f\nOffroad: %d\nLeft: %d\nRight: %d\nSpeed: %.0f\n%d\n", time_paused, offroad(player), button_left_state, button_right_state, speed, 0);
 
         // Test: Scenery and Obstacles
-        usb_send_message(DEBUG, 3, buffer, 80, "Time step: %.3f\nTerrain y: %.0f\nSpeed: %.0f\n%d\n", time_paused, terrain[1].y, speed, 0);
+        //usb_send_message(DEBUG, 3, buffer, 80, "Time step: %.3f\nTerrain y: %.0f\nSpeed: %.0f\n%d\n", time_paused, terrain[1].y, speed, 0);
+
+        // Test: Fuel Depot
+        usb_send_message(DEBUG, 3, buffer, 80, "Time step: %.3f\nDepot y: %.0f\nSpeed: %.0f\n%d\n", time_paused, fuel_station.y, speed, 0);
     } else {
         // Draw the terrain
         for(int i=0; i<NUM_TERRAIN; i++) {

@@ -718,7 +718,7 @@ Timestep	& Terrain y	& Expected y 	& Speed	& Test result		\\ \hline
 5.688		& 27		& \verb|>|0		& 5		& Pass		\\
 7.575		& 46		& \verb|>|27	& 5		& Pass		\\
 2.649		& 21		& - 			& 0		& Pass		\\
-8.165		& 21		& 21			& 0		& Pass		\\
+8.165		& 21		& 21			& 0		& Pass		\\ \hline
 \end{tabular}
 \end{center}
 This test also shows that terrain scrolls relative to the speed of the car. At a speed of 10, it took the terrain about 2 seconds to reach the bottom of the screen. At a speed of 5, it took the terrain 4 seconds.
@@ -728,8 +728,67 @@ This test also shows that terrain scrolls relative to the speed of the car. At a
 %	FUEL DEPOT
 %----------------------------------------------------------------------------------------
 \section{Fuel Depot}
+The Fuel Depot is a type of obstacle that refuels the player's car if it parks next to it, the refuel rate has been added in the section \emph{Fuel level increases gradually }. To smooth out the gameplay, the player will automatically park the car if they're travelling at a speed of 2 or less and are pressing the brakes. A collision with the fuel depot will immediately end the game for the player, regardless of the car's condition.
 
+\subsection*{Globals}
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	#define FUEL_STATION_MIN    140    
+	#define FUEL_STAION_MAX     180
+\end{lstlisting}
+The minimum and maximum distance from the top of the screen that the fuel station can spawn. Note that these numbers aren't the distance values shown in the Paused View but are in how many game steps it would take to the fuel station to appear at the top of the screen.
+\begin{lstlisting}[style=CStyle]
+	// Line 
+	Sprite fuel_station;
+\end{lstlisting}
+The sprite which represents the fuel depot.
+\begin{lstlisting}[style=CStyle]
+	// Line
+	int fuel_station_counter; 
+\end{lstlisting}
+Counts down the game steps until the fuel station can spawn on top of the screen.
+\newline
 
+\subsection*{Functions}
+\begin{lstlisting}[style=CStyle]
+	// Lines 
+	void fuel_station_reset(void)
+\end{lstlisting}
+Will spawn the fuel station at the top of the screen. This will force the next road section (see \emph{Curved road}) to be a straight section. This functions randomly chooses which side of the road to spawn and will also remove any terrain in the way.
+\begin{lstlisting}[style=CStyle]
+	// Lines 
+	void fuel_station_step(void)
+\end{lstlisting}
+Will step the sprite for the fuel depot by moving it downwards one pixel and then check if it went out of bounds. If it has, it will reset the \emph{fuel\_station\_counter} to a value between the limits set by the constants.
+\begin{lstlisting}[style=CStyle]
+	// Lines 
+	void game_screen_setup(void)
+\end{lstlisting}
+Will set the \emph{fuel\_station\_counter} to a value between the limits set by the constants. 
+\begin{lstlisting}[style=CStyle]
+	// Lines 
+	void game_screen_draw(void)
+\end{lstlisting}
+Will draw the fuel staion to the playing area. 
+\newpage
+
+\subsection*{Testing}
+Although the fuel station is closely linked to the other obstacles and should move in the same way, a testing plan was made to verify. 
+\subsubsection*{Test Case: Fuel station scrolls}
+\begin{center}
+\begin{tabular}{ c c c c c }
+Timestep	& Depot y	& Expected y 	& Speed	& Test result		\\ \hline
+8.115		& 6		& \verb|~|0		& 10		& Pass		\\
+9.352		& 34		& \verb|>|6		& 10		& Pass		\\
+9.916		& 47		& \verb|>|34	& 10		& Pass		\\
+12.087	& 0		& \verb|~|0		& 5		& Pass		\\
+14.400	& 27		& \verb|>|0		& 5		& Pass		\\
+16.059	& 47		& \verb|>|27	& 5		& Pass		\\
+11.414	& 20		& - 			& 0		& Pass		\\
+23.195	& 20		& 20			& 0		& Pass		\\ \hline
+\end{tabular}
+\end{center}
+This test also shows that the fuel depot scrolls relative to the speed of the car. At a speed of 10, it took the depot about 2 seconds to reach the bottom of the screen. At a speed of 5, it took the depot 4 seconds.
 \clearpage
 
 %----------------------------------------------------------------------------------------
