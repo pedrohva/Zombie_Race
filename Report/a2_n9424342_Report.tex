@@ -856,6 +856,55 @@ Timestep	& Fuel		& Expected fuel	& Speed	& Test result		\\ \hline
 \end{tabular}
 \end{center}
 
+\clearpage
+
+%----------------------------------------------------------------------------------------
+%	DISTANCE TRAVELLED
+%----------------------------------------------------------------------------------------
+\section{Distance Travelled}
+\subsection*{Globals}
+\begin{lstlisting}[style=CStyle]
+	// Line 
+	int distance_counter;
+\end{lstlisting}
+Incremented every time the game steps. Distance is increased by one every time the counter is larger than \emph{FUEL\_FACTOR}.
+\begin{lstlisting}[style=CStyle]
+	// Line
+	uint8_t distance;
+\end{lstlisting}
+Represents the units of distance travelled by the car since the game started. 
+\begin{lstlisting}[style=CStyle]
+	// Line 
+	uint8_t finish_line;
+\end{lstlisting}
+The distance that the player has to complete before they win the game. Setup in \emph{game\_screen\_setup(void)}. Currently hardcoded to 150 (no reason to make another global).
+\newline
+
+\subsection*{Functions}
+\begin{lstlisting}[style=CStyle]
+	// Lines 
+	void game_screen_step(void)
+\end{lstlisting}
+Will increment \emph{distance\_counter} and will check if the distance can be increased as well. Will decrease \emph{finish\_line} every time the distance is updated and when it reaches 0, the player has won.
+\newline
+
+\subsection*{Testing}
+Testing to see if the player has won is done in the section \emph{Game Over Dialogue}. 
+\subsubsection*{Test Case: Distance updates proportionally to the speed}
+\begin{center}
+\begin{tabular}{ c c c c c }
+Timestep	& Distance	& Expected distance	& Speed	& Test result		\\ \hline
+0.047		& 0		& 0				& 10		& Pass		\\
+5.218		& 29		& \verb|>|0			& 10		& Pass		\\
+10.444	& 59		& \verb|>|29		& 10		& Pass		\\
+0.060		& 0		& 0				& 5		& Pass		\\
+5.145		& 14		& \verb|<|29		& 5		& Pass		\\
+10.251	& 29		& \verb|<|59		& 5		& Pass		\\
+0.257		& 0		& 0				& 0		& Pass		\\
+10.186	& 0		& 0				& 0		& Pass		\\ \hline
+\end{tabular}
+\end{center}
+
 
 \clearpage
 

@@ -111,6 +111,7 @@ uint8_t condition;
 double fuel;
 double speed;
 uint8_t distance;
+uint8_t finish_line;
 uint8_t distance_counter;
 double speed_counter;
 
@@ -546,7 +547,10 @@ void game_screen_draw(void) {
         //usb_send_message(DEBUG, 3, buffer, 80, "Time step: %.3f\nDepot y: %.0f\nSpeed: %.0f\n%d\n", time_paused, fuel_station.y, speed, 0);
 
         // Test: Fuel
-        usb_send_message(DEBUG, 3, buffer, 80, "Time step: %.3f\nFuel: %.0f\nSpeed: %.0f\n%d\n", time_paused, fuel, speed, 0);
+        //usb_send_message(DEBUG, 3, buffer, 80, "Time step: %.3f\nFuel: %.0f\nSpeed: %.0f\n%d\n", time_paused, fuel, speed, 0);
+
+        // Test: Distance travelled
+        usb_send_message(DEBUG, 3, buffer, 80, "Time step: %.3f\nDistance: %d\nSpeed: %.0f\n%d\n", time_paused, distance, speed, 0);
     } else {
         // Draw the terrain
         for(int i=0; i<NUM_TERRAIN; i++) {
@@ -616,6 +620,7 @@ void game_screen_step(void) {
         fuel--;
         // Update the distance
         distance++;
+        finish_line--;
 
         distance_counter = 0;
     }
@@ -639,6 +644,11 @@ void game_screen_step(void) {
     fuel_station_step();
     road_step();
 
+    // Check if the player has won
+    if(finish_line < 1) {
+        change_screen(GAMEOVER_SCREEN);
+    }
+
     // Testing: Fuel
     /*
     if(fuel == FUEL_MAX) {
@@ -658,6 +668,7 @@ void game_screen_setup(void) {
     game_paused = 0;
     distance_counter = 0;
     speed_counter = 0;
+    finish_line = 150;
     
     // Setup the initial car information
     condition = 100;
