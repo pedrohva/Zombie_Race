@@ -1,4 +1,6 @@
-/** ---------------------------------- INCLUDES ----------------------------------- **/
+/***********************************************************************************/
+/* INCLUDES                                                                        */
+/***********************************************************************************/
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -7,6 +9,7 @@
 #include <math.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <avr/pgmspace.h>
 #include <util/delay.h>
 #include <cpu_speed.h>
 #include <graphics.h>
@@ -14,11 +17,16 @@
 #include <lcd.h>
 #include <macros.h>
 #include <lcd_model.h>
+#include "usb_serial.h"
 
-/** ----------------------------------- GLOBALS ----------------------------------- **/
+/***********************************************************************************/
+/* GLOBALS                                                                         */
+/***********************************************************************************/
 #define CPU_FREQ            (8000000.0) // The frequency of the CPU clock we set
 #define LCD_MAX_CONTRAST    0x7F
-#define TIMER0_PRESCALE     (256.0) // The prescale we used when setting up Timer0
+#define TIMER0_PRESCALE     (256.0)     // The prescale we used when setting up Timer0
+#define TIMER3_PRESCALE     (1024.0)    // The prescale we used when setting up Timer3
+#define GAME_FREQ           7812
 #define DASHBOARD_BORDER_X  26
 
 // The pin numbers for each switch (still need to manually find the port letter)
@@ -31,7 +39,8 @@
 #define STICK_DOWN          7
 
 // Determines the effect of the speed on the objects
-#define SPEED_FACTOR        (10.0)  // Must be greater than SPEED_MAX to avoid road sync issues
+#define SPEED_THRESH        8
+#define SPEED_FACTOR        8
 #define SPEED_MIN           0      
 #define SPEED_MAX           10
 #define SPEED_OFFROAD_MAX   3
@@ -48,12 +57,10 @@
 #define ROAD_SECTION_MAX    35
 
 // The rate at which the fuel decreases
-#define FUEL_FACTOR         (30.0)
-#define FUEL_MAX            (100.0)
-#define FUEL_STATION_MIN    90      // The minimum distance the fuel station can spawn
-#define FUEL_STAION_MAX     130
-// The rate at which distance increases
-#define DIST_FACTOR         (80.0)
+#define FUEL_FACTOR         3
+#define FUEL_MAX            100
+#define FUEL_STATION_MIN    140      // The minimum distance the fuel station can spawn
+#define FUEL_STAION_MAX     180
 
 // The different types of obstacles
 #define TERRAIN             0
@@ -76,12 +83,19 @@
 
 // Controls - Used to check if any button/joystick has been activated (don't check PINs)
 uint8_t button_left_state;
+uint8_t prev_button_left_state = 0;
 uint8_t button_right_state;
+uint8_t prev_button_right_state = 0;
 uint8_t stick_centre_state;
+uint8_t prev_stick_centre_state = 0;
 uint8_t stick_left_state;
+uint8_t prev_stick_left_state = 0;
 uint8_t stick_right_state;
+uint8_t prev_stick_right_state = 0;
 uint8_t stick_up_state;
+uint8_t prev_stick_up_state = 0;
 uint8_t stick_down_state;
+uint8_t prev_stick_down_state = 0;
 
 // Debounce
 uint8_t button_left_history = 0;
@@ -94,25 +108,29 @@ uint8_t stick_down_history = 0;
 
 // Game information
 uint8_t condition;
+uint8_t fuel;
 double speed;
-double fuel;
-double distance;
+uint8_t distance;
+uint8_t distance_counter;
+double speed_counter;
 
 // Game time control
+uint8_t step = 0;
 uint16_t game_timer_counter;
 uint8_t game_paused;
-double time_paused;  // The time the game was paused
+double time_paused;     // The time the game was paused. Used to avoid the decimal places changing constantly
+                        // when elapsed_time is called during the pause screen due to double division inaccuracies 
 
 // The player
 Sprite player;
 
 // Road
 uint8_t road[LCD_Y];            // The x-coordinates of each road piece
-int road_width = 16;   
-double road_y;                  // Used to make sure the road stays synced with the other objects in the playing field
+uint8_t road_width = 16;   
+uint8_t road_y;                  // Used to make sure the road stays synced with the other objects in the playing field
 uint8_t road_counter;           // Counts how many steps the road has taken before being moved horizontally
 uint8_t road_curve;             // This decides how many times the road must move before it is moved horizontally
-int road_direction;
+uint8_t road_direction;
 uint8_t road_section_length;    // How many steps the road has taken in the current length
 
 // Terrain
@@ -125,7 +143,7 @@ Sprite hazard_image[NUM_HAZARD_TYPES];
 
 // Fuel station
 Sprite fuel_station;
-double fuel_station_counter;   // Counts down to when the fuel station can spawn again
+int fuel_station_counter;   // Counts down to when the fuel station can spawn again
 bool refuelling;
 
 /**
@@ -133,12 +151,19 @@ bool refuelling;
  * The state should only be changed through the function change_screen()
  **/
 enum GameScreens {
-	START_SCREEN,
-	GAME_SCREEN,
-	GAMEOVER_SCREEN,
-	HIGHSCORE_SCREEN,
-	EXIT_SCREEN
+	START_SCREEN = 1,
+	GAME_SCREEN = 2,
+	GAMEOVER_SCREEN = 3,
 } game_screen;
+
+/**
+ * Commands used for USB communications
+ **/
+enum USBCommand {
+    SAVE = 1,
+    LOAD = 2,
+    DEBUG = 3
+};
 
 // Game loop controls 
 const double loop_freq = 60.0;
@@ -203,7 +228,10 @@ uint8_t fuel_station_image[] = {
 int fuel_station_width = 8;
 int fuel_station_height = 8;
 
-/** ---------------------------- FUNCTION DECLARATIONS ---------------------------- **/
+/***********************************************************************************/
+/* FUNCTION PROTOTYPES                                                             */
+/***********************************************************************************/
+
 // Helper functions
 double elapsed_time(uint16_t timer_counter);
 bool in_bounds(double x, double y);
@@ -226,6 +254,7 @@ void start_screen_draw(void);
 void game_screen_update(void);
 void game_screen_draw(void);
 void dashboard_draw(void);
+void game_screen_step(void);
 void game_screen_setup(void);
 
 // GAMEOVER_SCREEN
@@ -235,7 +264,8 @@ void gameover_screen_draw(void);
 // Player location and movement functions
 void player_car_setup(void);
 void player_car_reset(void);
-void player_car_move(double dx);
+void player_car_move(int dx);
+void player_speed_input(void);
 
 // Road functions
 void road_step(void);
@@ -257,16 +287,28 @@ void check_refuel(void);
 void refuel(void);
 
 // Collision detection
+bool offroad(Sprite sprite);
 bool check_collision(Sprite sprite);
 bool check_sprite_collided(Sprite sprite1, Sprite sprite2);
+bool check_sprite_collided_pixel(Sprite sprite1, Sprite sprite2);
 void handle_collision(void);
+
+// Save and load
+void game_state_save(void);
+void game_state_load(void);
+
+// USB communication
+void usb_send_message(enum USBCommand command, int line_num ,char * buffer, int buffer_size, const char * format, ...);
 
 // Teensy functions
 void teensy_setup(void);
 void adc_init(void);
 uint16_t adc_read(uint8_t channel);
 
-/** ---------------------------------- FUNCTIONS ---------------------------------- **/
+/***********************************************************************************/
+/* FUNCTIONS                                                                       */
+/***********************************************************************************/
+
 /**
  * The entry point for the program
  **/
@@ -285,7 +327,7 @@ int main(void) {
 
     // Start the main game loop
     loop_counter = 0;
-    while(game_screen != EXIT_SCREEN) {
+    while(1) {
         // Time execution started
         double t = elapsed_time(loop_counter);
         // Update all of the relevant game logic (sprites, collision, input, etc)
@@ -340,6 +382,22 @@ void update(void) {
         default:
             break;
     }
+
+    // Determine what contrast to set the screen to depending on Pot 0
+    int pot1 = adc_read(1);
+    int LCD_contrast = (int)(pot1/1024.0 * LCD_MAX_CONTRAST);
+    LCD_CMD(lcd_set_function, lcd_instr_extended);
+    LCD_CMD(lcd_set_contrast, LCD_contrast);
+    LCD_CMD(lcd_set_function, lcd_instr_basic);
+
+    // Update all control states
+    prev_button_left_state = button_left_state;
+    prev_button_right_state = button_right_state;
+    prev_stick_centre_state = stick_centre_state;
+    prev_stick_left_state = stick_left_state;
+    prev_stick_right_state = stick_right_state;
+    prev_stick_up_state = stick_up_state;
+    prev_stick_down_state = stick_down_state;
 }
 
 /**
@@ -393,23 +451,24 @@ void change_screen(int new_screen) {
 	}
 
 	game_screen = new_screen;
+
+    // Test: Splash screen
+    //char buf[100];
+    //usb_send_message(DEBUG, 4, buf, 100, "Timestep: %.3f\nSW2: %d\nSW3: %d\nScreen: %d\n%d\n", elapsed_time(game_timer_counter), button_left_state, button_right_state, game_screen, 0);
 }
 
 /**
  * Will change to the Game screen if the user presses the left or right button
  **/
 void start_screen_update(void) {
-    // Determine what contrast to set the screen to depending on Pot 0
-    int pot0 = adc_read(0);
-    int LCD_contrast = (int)(pot0/1024.0 * LCD_MAX_CONTRAST);
-    LCD_CMD(lcd_set_function, lcd_instr_extended);
-    LCD_CMD(lcd_set_contrast, LCD_contrast);
-    LCD_CMD(lcd_set_function, lcd_instr_basic);
-
     // Check if a button has been pressed and proceed to the game screen if it has
     if(button_left_state || button_right_state) {
         change_screen(GAME_SCREEN);
     }
+
+    // Test: Splash screen
+    //char buf[100];
+    //usb_send_message(DEBUG, 4, buf, 100, "Timestep: %.3f\nSW2: %d\nSW3: %d\nScreen: %d\n%d\n", elapsed_time(game_timer_counter), button_left_state, button_right_state, game_screen, 0);
 }
 
 /**
@@ -425,8 +484,8 @@ void start_screen_draw(void) {
  * Updates logic relating to the main game
  **/
 void game_screen_update(void) {
-    // Deals with input that decides if should pause the game or not
-    if(stick_centre_state) {
+    // Deals with input that decides if should pause the game or not (only toggle on press not hold)
+    if(((prev_stick_centre_state == 0) && (stick_centre_state != 0))) {
         game_paused ^= 1;
         if(game_paused) {
             time_paused = elapsed_time(game_timer_counter);
@@ -434,83 +493,20 @@ void game_screen_update(void) {
     }
 
     if(!game_paused) {
-        // Check if we ran out of fuel
-        if(fuel <= 0) {
-            change_screen(GAMEOVER_SCREEN);
+        // Steps through all of the main game logic involving input, collisions, etc.
+        if((speed_counter) > SPEED_THRESH) {
+            step = false;
+            speed_counter = 0;
+            game_screen_step();
         }
-
-        // Deals with input that controls horizontal movement
-        if(stick_left_state) {
-            player_car_move(-1.0);
-        } else if(stick_right_state) {
-            player_car_move(1.0);
+        player_speed_input();
+    } else {
+        // Checks if the user wants to load or save the game
+        if(((prev_stick_up_state == 0) && (stick_up_state != 0))) {
+            game_state_save();
+        }else if(((prev_stick_down_state == 0) && (stick_down_state != 0))) {
+            game_state_load();
         }
-
-        // Accelerate or decelerate controls
-        if(button_left_state) {
-            // If breaking
-            if(speed > 0) {
-                // Calculate rate to decrease speed in order to go from 10 to 0 in 2 seconds
-                double rate = 10.0 / (loop_freq);
-                speed -= rate;
-                // Protect against overshoot
-                if(speed < 1) {
-                    speed = 0;
-                }
-            }
-        }else if(button_right_state) {
-            // If accelerating
-            if(speed < SPEED_MAX) {
-                // Calculate rate to increase speed in order to go from 1 to 10 in 5 seconds
-                double rate = (10.0 - 1.0) / (loop_freq);
-                speed += rate;
-                // Protect against overshoot
-                if(speed > SPEED_MAX-1) {
-                    speed = SPEED_MAX;
-                }
-            }
-        }else { // If no button is being pressed
-            // Decrease speed if above 1 or increase to 1 if below
-            if(speed > 1) {
-                double rate = 9.0 / loop_freq;
-                speed -= rate;
-                // Protect against overshoot
-                if(speed < 1) {
-                    speed = 1;
-                }
-            }else {
-                double rate = 1.0 / loop_freq;
-                speed += rate;
-                // Protect against overshoot
-                if(speed > 1) {
-                    speed = 1;
-                }
-            }
-        }
-
-        // Update the fuel
-        fuel -= speed/FUEL_FACTOR;
-        // Update the distance
-        distance += speed/DIST_FACTOR;
-
-        // Check if the car has collided with an obstacle
-        if(check_collision(player)) {
-			// Check if the car has collided with a fuel station
-			if(check_sprite_collided(player,fuel_station)) {
-				change_screen(GAMEOVER_SCREEN);
-			} else {
-				handle_collision();
-			}
-		}
-
-        // Refuel the car
-        refuel();
-
-        // Step through our objects
-        terrain_step();
-        hazard_step();
-        fuel_station_step();
-        road_step();
     }
 }
 
@@ -528,7 +524,7 @@ void game_screen_draw(void) {
         draw_string(30, 2, "TIME:", FG_COLOUR);
         draw_formatted(30, 12, buffer, sizeof(buffer), "%.3f", time_paused);
         draw_string(30, 22, "DISTANCE:", FG_COLOUR);
-        draw_formatted(30, 32, buffer, sizeof(buffer), "%.0f", distance);
+        draw_formatted(30, 32, buffer, sizeof(buffer), "%d", distance);
     } else {
         // Draw the terrain
         for(int i=0; i<NUM_TERRAIN; i++) {
@@ -562,7 +558,7 @@ void dashboard_draw(void) {
     draw_string(1, 2, "H:", FG_COLOUR);
     draw_formatted(10, 2, buffer, sizeof(buffer), "%d", condition);
     draw_string(1, 12, "F:", FG_COLOUR);
-    draw_formatted(10, 12, buffer, sizeof(buffer), "%.0f", fuel);
+    draw_formatted(10, 12, buffer, sizeof(buffer), "%d", fuel);
     draw_string(1, 22, "S:", FG_COLOUR);
     draw_formatted(10, 22, buffer, sizeof(buffer), "%.0f", speed);
 
@@ -570,6 +566,66 @@ void dashboard_draw(void) {
     if(refuelling) {
         draw_char(1, 32, 'R', FG_COLOUR);
     }
+
+    // Test: Dashboard
+    char buf[100];
+    usb_send_message(DEBUG, 4, buf, 100, "Timestep: %.3f\nCondition: %d\nFuel: %d\nSpeed: %.0f\n%d\n", elapsed_time(game_timer_counter), condition, fuel, speed, 0);
+}
+
+/**
+ * Steps through the game logic when game screen is not in a puased state. 
+ * Will update fuel, check for input and collisions
+ **/
+void game_screen_step(void) {
+    // Check if we ran out of fuel
+    if(fuel <= 0) {
+        change_screen(GAMEOVER_SCREEN);
+    }
+
+    // Deals with input that controls horizontal movement
+    if(stick_left_state) {
+        player_car_move(-1);
+    } else if(stick_right_state) {
+        player_car_move(1);
+    }
+
+    if(++distance_counter > FUEL_FACTOR) {
+        // Update the fuel
+        fuel--;
+        // Update the distance
+        distance++;
+
+        distance_counter = 0;
+    }
+
+    // Check if the car has collided with an obstacle
+    if(check_collision(player)) {
+        // Check if the car has collided with a fuel station
+        if(check_sprite_collided(player,fuel_station)) {
+            change_screen(GAMEOVER_SCREEN);
+        } else {
+            handle_collision();
+        }
+    }
+
+    // Refuel the car
+    refuel();
+
+    // Step through our objects
+    terrain_step();
+    hazard_step();
+    fuel_station_step();
+    road_step();
+
+    // Testing: Fuel
+    /*
+    if(fuel == FUEL_MAX) {
+        char buf[30];
+        usb_send_message(DEBUG, 2, buf, 30, "Timestep: %.3f\nFuel: %d\n%d\n", elapsed_time(game_timer_counter), fuel, 0);
+    } else if(fuel == 80) {
+        char buf[100];
+        usb_send_message(DEBUG, 2, buf, 30, "Timestep: %.3f\nFuel: %d\n%d\n", elapsed_time(game_timer_counter), fuel, 0);
+    }*/
 }
 
 /**
@@ -578,6 +634,8 @@ void dashboard_draw(void) {
  **/
 void game_screen_setup(void) {
     game_paused = 0;
+    distance_counter = 0;
+    speed_counter = 0;
     
     // Setup the initial car information
     condition = 100;
@@ -587,6 +645,9 @@ void game_screen_setup(void) {
 
     // Reset the game time
     game_timer_counter = 0;
+
+    // Set the timer so that the game can start stepping
+    TCNT1 = 0x00;
 
     // Setup the road
     road_y = 0.0;
@@ -626,9 +687,9 @@ void gameover_screen_update(void) {
         change_screen(GAME_SCREEN);
     }
 
-    // If the centre joystick button is pressed, exit the game
-    if(stick_centre_state) {
-        exit(0);
+    // If the down button is pressed, load a new game from the server via USB
+    if(((prev_stick_down_state == 0) && (stick_down_state != 0))) {
+        game_state_load();
     }
 }
 
@@ -639,9 +700,8 @@ void gameover_screen_draw(void) {
     draw_string(18, 2, "Game Over", FG_COLOUR);
     draw_string(1, LCD_Y-30, "SW2 for Splash", FG_COLOUR);
     draw_string(1, LCD_Y-20, "SW3 for Game", FG_COLOUR);
-    draw_string(1, LCD_Y-10, "SW1 for Exit", FG_COLOUR);
+    draw_string(1, LCD_Y-10, "SWA for Load", FG_COLOUR);
 }
-
 
 /**
  * Place the player's car sprite in the middle of the road
@@ -668,10 +728,7 @@ void player_car_reset(void) {
  * Changes the horizontal displacement of the player's car.
  * Will take into account collisions and the speed of the car to modify the dx given
  **/
-void player_car_move(double dx) {
-    double dilation = (speed/SPEED_FACTOR) / 1.0;
-    dx = dx * dilation;
-
+void player_car_move(int dx) {
     double x = player.x + dx;
     // Check if the player will still be bounded
     if(!in_bounds(x, player.y)) {
@@ -684,65 +741,104 @@ void player_car_move(double dx) {
 }
 
 /**
+ * Handles input relating to speed
+ **/
+void player_speed_input(void) {
+    // Sets the player's maximum speed through the ADC
+    int max = SPEED_MAX;
+    if(offroad(player)) {
+        max = SPEED_OFFROAD_MAX;
+    }
+
+    int pot0 = adc_read(0);
+    int speed_limit = (int)(pot0/1024.0 * max);
+    speed_limit++;
+
+    double rate = 0;
+    // Handle acceleration
+    // Accelerate or decelerate controls
+    if(button_left_state) {
+        // Calculate rate to decrease speed in order to go from 10 to 0 in 2 seconds
+        rate = -10.0/40.0;
+    }else if(button_right_state) {
+        // Calculate rate to increase speed in order to go from 1 to 3 in 5 seconds
+        if(offroad(player)) {
+            rate = 3.0/120.0;
+        }else { // Calculate rate to increase speed in order to go from 1 to 10 in 5 seconds
+            rate = 10.0/90.0;
+        }
+    }else { // If no button is being pressed
+        // Decrease speed if above 1 or increase to 1 if below
+        if(speed > 1) {
+            // Calculate rate to increase speed in order to go from 3 to 1 in 3 seconds
+            if(offroad(player)) {
+                rate = -3.0/75.0;
+            }else { // Calculate rate to increase speed in order to go from 10 to 1 in 3 seconds
+                rate = -10.0/80.0;
+            }
+        }else {
+            // Calculate rate to increase speed in order to go from 0 to 1 in 3 seconds
+            if(offroad(player)) {
+                rate = 1.0/30.0;
+            }else { // Calculate rate to increase speed in order to go from 0 to 1 in 2 seconds
+                rate = 1.0/20.0;
+            }
+        }
+    }
+
+    speed += rate;
+
+    if(speed > speed_limit) {
+       speed = speed_limit;
+    }else if(speed < 0) {
+        speed = 0;
+    }
+}
+
+/**
  * Steps the x-coordinate of the road down by 1 and creates a new road piece
  * at the top of the screen.
  **/
 void road_step(void) {
-    // Decide if the road should be moved
-    bool step = false;
-    double dy = speed / SPEED_FACTOR;
-    int old_y = round(road_y);
-    road_y += dy;
-    int y = round(road_y);
-    if(y > old_y) {
-        step = true;
+    road_counter++;
+
+    // The x-coordinate of the new road piece being added
+    int x = road[0];
+    int dx;
+    
+    // Decide which direction the new road piece will be placed
+    switch(road_direction) {
+        case ROAD_STRAIGHT:
+            dx = 0;
+            break;
+        case ROAD_LEFT:
+            dx = -1;
+            break;
+        case ROAD_RIGHT:
+            dx = 1;
+            break;
+        default:
+            dx = 0;
+            break;
     }
 
-    if(road_y > LCD_Y) {
-        road_y = 0;
+    if((x+dx+road_width < LCD_X-1) && (x+dx > DASHBOARD_BORDER_X) && (road_counter > road_curve)) {
+        road_counter = 0;
+        x += dx;
     }
+    
+    // Remove the bottom road piece and shift everything down
+    memmove(&road[1], &road[0], (LCD_Y-1)*sizeof(uint8_t));
+    // Add the new piece of road
+    road[0] = x;
 
-    if(step) {
-        road_counter++;
-
-        // The x-coordinate of the new road piece being added
-        int x = road[0];
-        int dx;
-        
-        // Decide which direction the new road piece will be placed
-        switch(road_direction) {
-            case ROAD_STRAIGHT:
-                dx = 0;
-                break;
-            case ROAD_LEFT:
-                dx = -1;
-                break;
-            case ROAD_RIGHT:
-                dx = 1;
-                break;
-            default:
-                dx = 0;
-                break;
-        }
-
-        if((x+dx+road_width < LCD_X-1) && (x+dx > DASHBOARD_BORDER_X) && (road_counter > road_curve)) {
-            road_counter = 0;
-            x += dx;
-        }
-        
-        // Remove the bottom road piece and shift everything down
-        memmove(&road[1], &road[0], (LCD_Y-1)*sizeof(uint8_t));
-        // Add the new piece of road
-        road[0] = x;
-
-        road_section_length--;
-        // If it's time to switch directions (added another check in case of overflow)
-        if((road_section_length == 0) || (road_section_length > ROAD_SECTION_MAX)) {
-            road_direction = rand() % 2;    // After the initial road straight, we only want to have turns naturally
-            road_curve = rand() % (ROAD_CURVE_MAX + 1 - ROAD_CURVE_MIN) + ROAD_CURVE_MIN;
-            road_section_length = rand() % (ROAD_SECTION_MAX + 1 - ROAD_SECTION_MIN) + ROAD_SECTION_MIN;
-            road_counter = 0;
-        }
+    road_section_length--;
+    // If it's time to switch directions (added another check in case of overflow)
+    if((road_section_length == 0) || (road_section_length > ROAD_SECTION_MAX)) {
+        road_direction = rand() % 2;    // After the initial road straight, we only want to have turns naturally
+        road_curve = rand() % (ROAD_CURVE_MAX + 1 - ROAD_CURVE_MIN) + ROAD_CURVE_MIN;
+        road_section_length = rand() % (ROAD_SECTION_MAX + 1 - ROAD_SECTION_MIN) + ROAD_SECTION_MIN;
+        road_counter = 0;
     }
 }
 
@@ -855,7 +951,7 @@ void terrain_reset(int index, int y_bot) {
  **/
 void terrain_step(void) {
     for(int i=0; i<NUM_TERRAIN; i++) {
-        terrain[i].y += speed / SPEED_FACTOR;
+        terrain[i].y++;
         // Reset the terrain if it has gone out of bounds
         if(terrain[i].y > LCD_Y) {
             terrain_reset(i,0);
@@ -946,7 +1042,7 @@ void hazard_reset(int index, int y_bot) {
  **/
 void hazard_step(void) {
     for(int i=0; i<NUM_HAZARD; i++) {
-        hazard[i].y += speed / SPEED_FACTOR;
+        hazard[i].y++;
         // Reset the terrain if it has gone out of bounds
         if(hazard[i].y > LCD_Y) {
             int roll = rand() % 100;
@@ -1022,7 +1118,7 @@ void fuel_station_step(void) {
     }
 
     // Scroll the fuel station
-    fuel_station.y += speed / SPEED_FACTOR;
+    fuel_station.y++;
 }
 
 /**
@@ -1059,7 +1155,7 @@ void refuel(void) {
 			refuelling = false;
 		} else {
             // Increment the fuel value with a rate that would go 0-100 in 3 seconds
-            fuel += FUEL_MAX/loop_freq;
+            fuel++;
 
             // Prevent overshoot and cancel fuelling if reached max fuel
             if(fuel > FUEL_MAX) {
@@ -1068,6 +1164,21 @@ void refuel(void) {
             }
         }
 	}
+}
+
+/**
+ * Checks if the sprite is off the road
+ **/
+bool offroad(Sprite sprite) {
+    if(sprite.x < road[(int)round(sprite.y)]) {
+		return true;
+	}
+
+	if((sprite.x + sprite.width - 1) > (road[(int)round(sprite.y)] + road_width)) {
+		return true;
+	}
+
+	return false;
 }
 
 /**
@@ -1112,12 +1223,16 @@ bool check_sprite_collided(Sprite sprite1, Sprite sprite2) {
 		if(!((sprite1.x + sprite1.width <= sprite2.x) || (sprite1.x >= sprite2.x + sprite2.width))) {
 			// Check if there is collision in the y-axis
 			if(!((sprite1.y + sprite1.height < sprite2.y) || (sprite1.y > sprite2.y + sprite2.height))) {
-				return true;
+				return check_sprite_collided_pixel(sprite1, sprite2);
 			}
 		}
 	}
 
 	return false;
+}
+
+bool check_sprite_collided_pixel(Sprite sprite1, Sprite sprite2) {
+    return true;
 }
 
 /**
@@ -1143,6 +1258,61 @@ void handle_collision(void) {
 }
 
 /**
+ * Pass game identifying variables such as current speed, distance, condition, fuel, etc to the server via USB 
+ **/
+void game_state_save(void) {
+    //uint8_t condition;
+    //double speed;
+    //double fuel;
+    //double distance;
+    //uint16_t game_timer_counter;
+    // Road
+    //uint8_t road[LCD_Y];            // The x-coordinates of each road piece
+    //double road_y;                  // Used to make sure the road stays synced with the other objects in the playing field
+    //uint8_t road_counter;           // Counts how many steps the road has taken before being moved horizontally
+    //uint8_t road_curve;             // This decides how many times the road must move before it is moved horizontally
+    //int road_direction;
+    //uint8_t road_section_length;    // How many steps the road has taken in the current length
+    // The player
+    //Sprite player;
+    //Sprite terrain[NUM_TERRAIN];   
+    //Sprite hazard[NUM_HAZARD];  
+    // Fuel station
+    //Sprite fuel_station;
+    //double fuel_station_counter;   // Counts down to when the fuel station can spawn again
+    //bool refuelling;
+    char data[500];
+    //int message_size = sprintf(data, "%d\n%d\n%d\n%d\n%d\n%d\n", 1, condition, (int)floor(speed), fuel, distance, 0);
+    //char message[message_size+1];
+    //int size = sprintf(message, "%d\n%s", message_size, data);
+    //usb_serial_putchar(1);
+    //usb_serial_putchar(4);
+    //usb_serial_write((uint8_t *) data, message_size);
+    usb_send_message(SAVE, 4, data, 500, "%d\n%d\n%d\n%d\n%d\n", condition, (int)round(speed), fuel, distance, 0);
+    usb_serial_flush_output();
+    usb_serial_flush_input();
+}
+
+/**
+ * Communicate with the server via USB in order to load a game by getting critical variables
+ **/
+void game_state_load(void) {
+
+}
+
+/**
+ * Sends the string input to the terminal
+ **/
+void usb_send_message(enum USBCommand command, int line_num ,char * buffer, int buffer_size, const char * format, ...) {
+    usb_serial_putchar(command);
+    usb_serial_putchar(line_num);
+    va_list args;
+	va_start(args, format);
+	int size = vsnprintf(buffer, buffer_size, format, args);
+    usb_serial_write((uint8_t *) buffer, size);
+}
+
+/**
  * Set clock speed, contrast settings and initial register setups
  **/
 void teensy_setup(void) {
@@ -1152,10 +1322,22 @@ void teensy_setup(void) {
     // Setup the ADC that will be used for the potentionmeters
     adc_init();
 
+    // Setup USB communication
+    usb_init();
+	while ( !usb_configured() ) {
+		// Block until USB is ready.
+	}
+    usb_serial_flush_input();
+
     // Initialise Timer 0 which will be used for debouncing purposes 
     TCCR0A = 0x00;
     TCCR0B = 1<<CS02;
     TIMSK0 = 1<<TOIE0; 
+
+    // Initialise Timer 3 which will be used to control speed
+    TCCR1B = 0x0C;	        // Prescaler 1024, enable CTC
+	TIMSK1 = 0x02;          // Interrupt on 
+	OCR1A = GAME_FREQ/60;
 
     // Setup the buttons
     DDRF &= ~(1<<BUTTON_LEFT | 1<<BUTTON_RIGHT);
@@ -1251,5 +1433,30 @@ ISR(TIMER0_OVF_vect) {
         stick_right_state = 0;
     } else if(stick_right_history == mask) {
         stick_right_state = 1;
+    }
+    
+    // STICK_UP
+    b = (PIND>>STICK_UP) & 0x01;
+    stick_up_history = ((stick_up_history << 1) & mask) | b;
+    if(stick_up_history == 0) {
+        stick_up_state = 0;
+    } else if(stick_up_history == mask) {
+        stick_up_state = 1;
+    }
+
+    // STICK_DOWN
+    b = (PIND>>STICK_DOWN) & 0x01;
+    stick_down_history = ((stick_down_history << 1) & mask) | b;
+    if(stick_down_history == 0) {
+        stick_down_state = 0;
+    } else if(stick_down_history == mask) {
+        stick_down_state = 1;
+    }
+}
+
+ISR(TIMER1_COMPA_vect) {
+	if(!game_paused && (game_screen == GAME_SCREEN)) {
+        double rate = speed/SPEED_FACTOR;
+        speed_counter += rate;
     }
 }
