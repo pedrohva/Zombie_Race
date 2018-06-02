@@ -108,7 +108,7 @@ uint8_t stick_down_history = 0;
 
 // Game information
 uint8_t condition;
-uint8_t fuel;
+double fuel;
 double speed;
 uint8_t distance;
 uint8_t distance_counter;
@@ -543,7 +543,10 @@ void game_screen_draw(void) {
         //usb_send_message(DEBUG, 3, buffer, 80, "Time step: %.3f\nTerrain y: %.0f\nSpeed: %.0f\n%d\n", time_paused, terrain[1].y, speed, 0);
 
         // Test: Fuel Depot
-        usb_send_message(DEBUG, 3, buffer, 80, "Time step: %.3f\nDepot y: %.0f\nSpeed: %.0f\n%d\n", time_paused, fuel_station.y, speed, 0);
+        //usb_send_message(DEBUG, 3, buffer, 80, "Time step: %.3f\nDepot y: %.0f\nSpeed: %.0f\n%d\n", time_paused, fuel_station.y, speed, 0);
+
+        // Test: Fuel
+        usb_send_message(DEBUG, 3, buffer, 80, "Time step: %.3f\nFuel: %.0f\nSpeed: %.0f\n%d\n", time_paused, fuel, speed, 0);
     } else {
         // Draw the terrain
         for(int i=0; i<NUM_TERRAIN; i++) {
@@ -577,7 +580,7 @@ void dashboard_draw(void) {
     draw_string(1, 2, "H:", FG_COLOUR);
     draw_formatted(10, 2, buffer, sizeof(buffer), "%d", condition);
     draw_string(1, 12, "F:", FG_COLOUR);
-    draw_formatted(10, 12, buffer, sizeof(buffer), "%d", fuel);
+    draw_formatted(10, 12, buffer, sizeof(buffer), "%.0f", fuel);
     draw_string(1, 22, "S:", FG_COLOUR);
     draw_formatted(10, 22, buffer, sizeof(buffer), "%.0f", speed);
 

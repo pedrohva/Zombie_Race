@@ -792,6 +792,74 @@ This test also shows that the fuel depot scrolls relative to the speed of the ca
 \clearpage
 
 %----------------------------------------------------------------------------------------
+%	FUEL
+%----------------------------------------------------------------------------------------
+\section{Fuel}
+The car start with a fuel tank which decreases as it moves. The faster it moves, the faster the fuel is depleted. After parking next to a fuel depot, the fuel tank is refilled to max, the rate at which the fuel is increased is covered in the section \emph{Fuel level increases gradually}. The fuel tank can also be refilled to max after a collision with an obstacle. 
+
+\subsection*{Globals}
+\begin{lstlisting}[style=CStyle]
+	// Line 
+	double fuel;
+\end{lstlisting}
+The current amount of fuel available to the player.When it reaches 0, the game is over.
+\begin{lstlisting}[style=CStyle]
+	// Line 
+	bool refuelling;
+\end{lstlisting}
+Represents whether the car is currently refuelling.
+\begin{lstlisting}[style=CStyle]
+	// Line 
+	#define FUEL_FACTOR         3
+\end{lstlisting}
+Affects the rate at which the fuel decreases.
+\begin{lstlisting}[style=CStyle]
+	// Line 
+	uint8_t distance_counter;
+\end{lstlisting}
+When the distance counter is greater than the \emph{FUEL\_FACTOR}, fuel is decreased by one and distance increased by one. As the distance counter is incremented every time the game is stepped, it means  the rate that fuel depletes is affected by the speed of the car.
+\newline
+
+\subsection*{Functions}
+\begin{lstlisting}[style=CStyle]
+	// Lines 
+	void check_refuel();
+\end{lstlisting}
+Checks if the car meets all of the criteria to begin refuelling (next to a fuel station and travelling at a speed of 2 or less). Then switches the \emph{refuelling} variable to true, sets speed to 0 and starts \emph{refuel\_timer}.
+\begin{lstlisting}[style=CStyle]
+	// Lines 
+	void refuel();
+\end{lstlisting}
+Called every time the game steps. If the car isn't already refuelling, call \emph{check\_refuel()}. Otherwise it will make sure the car's speed has remained at 0 and the brake is pressed.Every time this function is called, the fuel is increased by a rate described in the section \emph{Fuel level increases gradually}.
+\begin{lstlisting}[style=CStyle]
+	// Lines 
+	void game_screen_step(void)
+\end{lstlisting}
+Will check if the fuel is above 0 and will give the game over message when the fuel tank is empty. Will also increment \emph{distance\_counter}.
+\newpage
+
+\subsection*{Testing}
+The car refuelling will be tested in the section \emph{Fuel level increases gradually}. To ensure all other functionality meets the criteria, the following test plan was performed.
+
+\subsubsection*{Test Case: Fuel depletes proportionally to the speed}
+\begin{center}
+\begin{tabular}{ c c c c c }
+Timestep	& Fuel		& Expected fuel	& Speed	& Test result		\\ \hline
+0.043		& 100		& 100			& 10		& Pass		\\
+5.040		& 72		& \verb|<|100	& 10		& Pass		\\
+10.288	& 48		& \verb|<|72	& 10		& Pass		\\
+0.179		& 100		& 100			& 5		& Pass		\\
+5.390		& 85		& \verb|>|72	& 5		& Pass		\\
+10.055	& 71		& \verb|>|48	& 5		& Pass		\\
+0.431		& 100		& 100			& 0		& Pass		\\
+10.313	& 100		& 100			& 0		& Pass		\\ \hline
+\end{tabular}
+\end{center}
+
+
+\clearpage
+
+%----------------------------------------------------------------------------------------
 %	CONCLUSION
 %----------------------------------------------------------------------------------------
 \section{Conclusion}
