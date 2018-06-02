@@ -595,6 +595,139 @@ Timestep	& Speed	& Expected speed	&  button\_left\_state	& button\_right\_state	
 %	SCENEREY AND OBSTACLES
 %----------------------------------------------------------------------------------------
 \section{Scenery and obstacles}
+In this game, obstacles can be separated into three categories.  Fuel depots have additional functionality and are covered in the section \emph{Fuel Depot}. 
+\begin{itemize}
+ 	\item Terrain (spawns offroad)
+ 	\item Road Hazards (limited to the road)
+	\item Fuel Depots
+\end{itemize}
+The amount of scenery that can spawn in the game is based on the dimensions of the screen. This ensures that the game is fair for all screen sizes and that at least 5 obstacles are in view at any one time.
+\subsection*{Globals}
+\begin{lstlisting}[style=CStyle]
+	// Line 
+	#define NUM_TERRAIN         10
+\end{lstlisting}
+The maximum amount of terrain obstacles that can appear at one time.
+\begin{lstlisting}[style=CStyle]
+	// Line 
+	Sprite terrain[NUM_TERRAIN]; 
+\end{lstlisting}
+An array that holds all sprites representing terrain.
+\begin{lstlisting}[style=CStyle]
+	// Line 
+	#define NUM_HAZARD          2
+\end{lstlisting}
+The maximum amount of road hazards that can appear at one time. 
+\begin{lstlisting}[style=CStyle]
+	// Line 
+	Sprite hazard[NUM_HAZARD];
+\end{lstlisting}
+An array that holds all sprites representing road hazards.
+\begin{lstlisting}[style=CStyle]
+	// Lines 
+	#define TERRAIN     0
+	#define HAZARD      1
+\end{lstlisting}
+Used to define the different types of obstacles.
+\begin{lstlisting}[style=CStyle]
+	// Lines 
+	#define NUM_TERRAIN_TYPES   2
+	#define TERRAIN_TREE        0
+	#define TERRAIN_SIGN        1
+\end{lstlisting}
+Used to differentiate between the different types of terrain.
+\begin{lstlisting}[style=CStyle]
+	// Lines 46-48
+	#define NUM_HAZARD_TYPES    2
+	#define HAZARD_TRIANGLE     0
+	#define HAZARD_SPIKE        1
+\end{lstlisting}
+Used to differentiate between the different types of road hazards.
+\begin{lstlisting}[style=CStyle]
+	// Lines 143-150
+	Sprite terrain_image[NUM_TERRAIN_TYPES];
+	Sprite hazard_image[NUM_HAZARD_TYPES];
+\end{lstlisting}
+Holds information about a sprite's bitmap for each different type of terrain and hazard.
+\newpage
+\begin{lstlisting}[style=CStyle]
+	// Line
+	#define HAZARD_SPAWN_CHANCE 15
+\end{lstlisting}
+The percentage chance that a hazard that is out of bounds will spawn again (15 is quite high as this is called every game step tick).
+
+\subsection*{Functions}
+\begin{lstlisting}[style=CStyle]
+	// Lines 
+	void terrain_image_setup(void);
+\end{lstlisting}
+Setup the sprites in \emph{terrain\_image} that will be used as a reference for each terrain type.
+\begin{lstlisting}[style=CStyle]
+	// Lines 
+	void hazard_image_setup(void);
+\end{lstlisting}
+Setup the sprites in \emph{hazard\_image} that will be used as a reference for each hazard type.
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	void terrain_setup(void);
+\end{lstlisting}
+Iterates through the \emph{terrain} array and calls \emph{terrain\_reset()} in order to create a type of terrain for each index. Not all terrain may appear on the screen at once (some may be spawned above the playing area because there is no more space).
+\begin{lstlisting}[style=CStyle]
+	// Lines 
+	void terrain_reset(int index, int y_bot);
+\end{lstlisting}
+Moves the terrain so that it's bottom y-coordinate is at y\_bot. The type of terrain and it's x-coordinate will also be randomised. Nothing will happen if it collides with another obstacle which means \emph{terrain\_step()} will call this again next game tick for the same index (as it'll still be scrolling further below the screen).
+\begin{lstlisting}[style=CStyle]
+	// Lines 
+	void terrain_step(void);
+\end{lstlisting}
+Steps all of the terrain sprites in the terrain array and then checks if any have gone out of bounds below the screen. Will then attempt to reset the terrain with \emph{terrain\_reset()}. Called every time \emph{game\_step()} is called.
+\begin{lstlisting}[style=CStyle]
+	// Lines 
+	void hazard_setup(void);
+\end{lstlisting}
+Creates hazard sprites and fill the hazard array with them. Will then call \emph{hazard\_reset()} in order to put them on the screen.
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	void hazard_reset(int index, int y_bot);
+\end{lstlisting}
+Moves the hazard corresponding to the index to the game world so that its bottom y coordinate matches y\_bot. The type of hazard and its x-coordinate will also be randomised. Nothing will happen if it collides with another obstacle which means \emph{hazard\_step()} will call this again next game tick. The hazard and terrain setup, update and reset functions are similar but need to be separated due to different arrays being used and both having different limitations on where they can be spawned.
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	void hazard_step(void);
+\end{lstlisting}
+Steps all of the hazard sprites in the hazards array and then checks if any have gone out of bounds below the screen. Will then attempt to reset the hazard with \emph{hazard\_reset()}. Called every time \emph{game\_step()} is called.
+\begin{lstlisting}[style=CStyle]
+	// Lines 
+	void game_screen_draw(void);
+\end{lstlisting}
+Will draw all of the obstacles to the game screen.
+\newpage
+
+\subsection*{Testing}
+The second terrain in the terrain array was used to verify all test plans.
+
+\subsubsection*{Test Case: Terrain scrolls}
+\begin{center}
+\begin{tabular}{ c c c c c }
+Timestep	& Terrain y	& Expected y 	& Speed	& Test result		\\ \hline
+1.742		& 0		& 0 			& 10		& Pass		\\
+2.896		& 26		& \verb|>|0		& 10		& Pass		\\
+3.871		& 48		& \verb|>|26	& 10		& Pass		\\
+3.350		& 0		& 0			& 5		& Pass		\\
+5.688		& 27		& \verb|>|0		& 5		& Pass		\\
+7.575		& 46		& \verb|>|27	& 5		& Pass		\\
+2.649		& 21		& - 			& 0		& Pass		\\
+8.165		& 21		& 21			& 0		& Pass		\\
+\end{tabular}
+\end{center}
+This test also shows that terrain scrolls relative to the speed of the car. At a speed of 10, it took the terrain about 2 seconds to reach the bottom of the screen. At a speed of 5, it took the terrain 4 seconds.
+\clearpage
+
+%----------------------------------------------------------------------------------------
+%	FUEL DEPOT
+%----------------------------------------------------------------------------------------
+\section{Fuel Depot}
 
 
 \clearpage
