@@ -442,7 +442,7 @@ Timestep	& Distance	& Expected distance	& Speed	& Test result \\ \hline
 \end{tabular}
 \end{center}
 
-\subsubsection*{Multiple pause-unpause-pause commands}
+\subsubsection*{Test Case: Multiple pause-unpause-pause commands}
 The center joystick button is pressed every 5 seconds in order to verify that the time moves or stays constant depending on the state of the game. 
 \begin{center}
 \begin{tabular}{ c c c c c }
@@ -459,7 +459,7 @@ Timestep	& Expected timestep	& Paused	& Test result	\\ \hline
 %	Horizontal Movement
 %----------------------------------------------------------------------------------------
 \section{Horizontal Movement}
-When the user moves the Joystick to the left or right, the car will also move in that direction. The car is unable to move when the speed is zero or if by doing so, it would go out of bounds to the right of the screen or move into the dashboard area.
+When the user moves the Joystick to the left or right, the car will also move in that direction. The car is unable to move when the speed is zero or if by doing so, it would go out of bounds to the right of the screen or move into the dashboard area. More functionality is added in \emph{More realistic steering}.
 
 \subsection*{Globals}
 \begin{lstlisting}[style=CStyle]
@@ -467,12 +467,135 @@ When the user moves the Joystick to the left or right, the car will also move in
 	uint8_t stick_left_state;
 	uint8_t stick_right_state;
 \end{lstlisting}
+If any of the states are true, the car will move left or right. 
+\newline
 
 \subsection*{Functions}
 \begin{lstlisting}[style=CStyle]
 	// Lines
-	double elapsed_time(uint16_t timer_counter)
+	void game_screen_step(void);
 \end{lstlisting}
+Checks if the joystick has moved to the left or right and calls \emph{player\_car\_move()}. As \emph{game\_screen\_step()} is only called if the speed is not zero, this already makes sure the non-zero condition is met.
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	bool in_bounds(double x, double y);
+\end{lstlisting}
+Will check if the car will go out of bounds by moving off the game screen to the right or into the dashboard area to the left.
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	void player_car_move(int dx);
+\end{lstlisting}
+If the car will be in bounds, moves it one pixel in the specified direction.
+\newline
+
+\subsection*{Testing}
+A more comprehensive testing plan will be done in the section \emph{More realistic steering}. Collision with other objects and offroad speed limits were disabled in order to conduct testing as required by the brief.
+
+\subsubsection*{Test Case: Movement is accurate depending on speed and inputs}
+For every new entry in the table, the game was restarted in order for the time step to display the amount of seconds that the input and speed were affecting the horizontal movement of the car. After verifying that the car doesn't move when speed is 0, the left and right joystick are pressed to check if the car stays in bounds even after it reaches the edge of the playing area.
+\begin{center}
+\begin{tabular}{ c c c c c c c }
+Timestep	& Player x coord	& Expected x coord		& stick\_left\_state		& stick\_right\_state	& Speed	& Test result		\\ \hline
+0.228		& 53			& 53 (Middle of road)	& 0				& 0				& 10		& Pass		\\
+6.476		& 53			& 53				& 1				& 0				& 0		& Pass		\\
+5.239		& 53			& 53				& 0				& 1				& 0		& Pass		\\
+11.241	& 27			& 27 (dashboard+1)	& 1				& 0				& 10		& Pass		\\
+10.944	& 79			& 79 (LCD\_Y - 1)		& 0				& 1				& 10		& Pass		\\ \hline
+\end{tabular}
+\end{center}
+
+\clearpage
+
+%----------------------------------------------------------------------------------------
+%	Acceleration and Speed
+%----------------------------------------------------------------------------------------
+\section{Acceleration and Speed}
+The user can choose to accelerate the car by pressing the left button (SW2) or decelerate by pressing the right button (SW3) with more functionality to this being added in the section \emph{Accelerator and brake}. The speed is limited to a minimum of 0 and a maximum of 10 on the road and 3 off-road. This speed limiter can be modified by relative position of Pot0, more on this feature is covered in section \emph{ADC}. The current speed value is displayed to the user and correctly reflected in the dashboard.
+
+\subsection*{Globals}
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	uint8_t button_left_state;
+	uint8_t button_right_state;
+\end{lstlisting}
+The left button will accelerate the car and the right button will decelerate.
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	#define SPEED_MIN           0      
+	#define SPEED_MAX           10
+	#define SPEED_OFFROAD_MAX   10
+\end{lstlisting}
+Will set the limits for the speed.
+\begin{lstlisting}[style=CStyle]
+	\Lines 
+	#define SPEED_THRESH        8
+	#define SPEED_FACTOR        8
+\end{lstlisting}
+Used to calculate the increase in speed with every loop iteration.
+\begin{lstlisting}[style=CStyle]
+	// Line
+	#define TIMER1_FREQ    7812
+\end{lstlisting}
+The frequency TIMER1 is set to. 
+\begin{lstlisting}[style=CStyle]
+	// Line
+	double speed;
+\end{lstlisting}
+The current speed value of the car.
+\begin{lstlisting}[style=CStyle]
+	// Line
+	double speed_counter;
+\end{lstlisting}
+Used to decide when to update the game logic. 
+\newline
+
+\subsection*{Functions}
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	void teensy_setup(void)
+\end{lstlisting}
+Will set Timer1 to CTC mode in a way that ISR(TIMER1\_COMPA\_vect) is called 60 times a second. Section \emph{Timers and volatile data} goes more indepth on the values for the registers. 
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	ISR(TIMER1_COMPA_vect)
+\end{lstlisting}
+If the game isn't paused and the program state is in the game screen, it will increase the speed counter by a rate of speed/SPEED\_FACTOR.
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	void game_screen_update(void);
+\end{lstlisting}
+If the speed\_counter is greater than SPEED\_THRESH, the game logic will be updated by one tick. 
+\newpage
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	void player_speed_input(void);
+\end{lstlisting}
+Will increase or decrease the speed depending if the accelerator or brake is pressed. \emph{Accelerator and brake} will go more in depth regarding this function. This function will ensure the speed is constrained by the limits set.
+\newline
+
+\subsection*{Testing}
+The majority of testing regarding the speed and acceleration will occur in the sections \emph{Accelerator and brake} (combinations of accelerate/decelerate with car in different speeds) and \emph{ADC} (obey limits). 
+\subsubsection*{Test Case: Speed stays in the limits set}
+The right button (SW3) is pressed for 5 seconds in order to keep accelerating the car until the maximum speed. The left button (SW2) is pressed for 5 seconds to brake the car to make sure the speed is limited to minimum of 0.
+\begin{center}
+\begin{tabular}{ c c c c c c c }
+Timestep	& Speed	& Expected speed	&  button\_left\_state	& button\_right\_state	& Offroad	& Test pass	\\ \hline
+0.230		& 10		& 10			& 0				& 1				& 0		& Pass	\\
+5.346		& 10		& 10			& 0				& 1				& 0		& Pass	\\
+1.348		& 3		& 3			& 0				& 1				& 1		& Pass	\\
+6.374		& 3		& 3			& 0				& 1				& 1		& Pass	\\
+2.047 		& 0		& 0			& 1 				& 0 				& 0  		& Pass	\\ 
+7.117		& 0		& 0			& 1				& 0				& 0		& Pass	\\ \hline
+\end{tabular}
+\end{center}
+
+\clearpage
+
+%----------------------------------------------------------------------------------------
+%	SCENEREY AND OBSTACLES
+%----------------------------------------------------------------------------------------
+\section{Scenery and obstacles}
+
 
 \clearpage
 

@@ -25,8 +25,8 @@
 #define CPU_FREQ            (8000000.0) // The frequency of the CPU clock we set
 #define LCD_MAX_CONTRAST    0x7F
 #define TIMER0_PRESCALE     (256.0)     // The prescale we used when setting up Timer0
-#define TIMER3_PRESCALE     (1024.0)    // The prescale we used when setting up Timer3
-#define GAME_FREQ           7812
+#define TIMER1_PRESCALE     (1024.0)    // The prescale we used when setting up Timer3
+#define TIMER1_FREQ         7812
 #define DASHBOARD_BORDER_X  26
 
 // The pin numbers for each switch (still need to manually find the port letter)
@@ -532,6 +532,12 @@ void game_screen_draw(void) {
 
         // Test: Paused View
         //usb_send_message(DEBUG, 2, buffer, 80, "Time step: %.3f\nDistance: %d\n%d\n", time_paused, distance, 0);
+
+        // Test: Horizontal Movement
+        //usb_send_message(DEBUG, 5, buffer, 80, "Time step: %.3f\nPlayer x: %.0f\nLeft: %d\nRight: %d\nSpeed: %.0f\n%d\n", time_paused, player.x, stick_left_state, stick_right_state, speed, 0);
+
+        // Test: Acceleration and Speed
+        usb_send_message(DEBUG, 5, buffer, 80, "Time step: %.3f\nOffroad: %d\nLeft: %d\nRight: %d\nSpeed: %.0f\n%d\n", time_paused, offroad(player), button_left_state, button_right_state, speed, 0);
     } else {
         // Draw the terrain
         for(int i=0; i<NUM_TERRAIN; i++) {
@@ -606,14 +612,14 @@ void game_screen_step(void) {
     }
 
     // Check if the car has collided with an obstacle
-    if(check_collision(player)) {
+    /*if(check_collision(player)) {
         // Check if the car has collided with a fuel station
         if(check_sprite_collided(player,fuel_station)) {
             change_screen(GAMEOVER_SCREEN);
         } else {
             handle_collision();
         }
-    }
+    }*/
 
     // Refuel the car
     refuel();
@@ -1344,7 +1350,7 @@ void teensy_setup(void) {
     // Initialise Timer 3 which will be used to control speed
     TCCR1B = 0x0C;	        // Prescaler 1024, enable CTC
 	TIMSK1 = 0x02;          // Interrupt on 
-	OCR1A = GAME_FREQ/60;
+	OCR1A = TIMER1_FREQ/60;
 
     // Setup the buttons
     DDRF &= ~(1<<BUTTON_LEFT | 1<<BUTTON_RIGHT);
