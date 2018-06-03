@@ -261,6 +261,9 @@ Figure \ref{test_debug} shows the result in the server program when the followin
 	\end{center}
 \end{figure}
 To improve readability of the test plan in the later sections, the information received from the server will be scribed into a table format. Under each teest case, the lines that contain the pieces of code that need to be uncommented to replicate the test are included. 
+\newline
+\newline
+Testing was done by using a srand seed of 100 in order to allow reproduction later of the same tests. 
 \clearpage
 
 %----------------------------------------------------------------------------------------
@@ -952,9 +955,42 @@ When it's found that the player has collided with an object that is not the fuel
 	void player_car_move(int dx) 
 \end{lstlisting}
 Won't allow the player to move if it means colliding sideways with an obstacle
-\newline
+\newpage
 
 \subsection*{Testing}
+In order to ensure all functionality has been implemented, the following test plans were devised:
+\begin{itemize}
+	\item Car does not move when doing so would result in a sideways collision
+	\item Car collides head on with an obstacle
+\end{itemize}
+\subsubsection*{Car does not move when doing so would result in a sideways collisions}
+The two x values under car/obstacle x refer to leftmost x value in the object's bounding box and the rightmost x value in the object's bounding box (x + width) respectively. If the first x of the car is less than the second x of the obstacle, then there should be a sideways collision due to the car wanting to move left. If the second x of the car is larger than the first x of the obstacle, then there should also be a collision due to the car wanting to move right. If it is equal, then the car and the object are side by side.
+\begin{center}
+\begin{tabular}{ c c c c c c c c }
+Timestep	& Car x 	& Object x 	& stick\_left\_state	& stick\_right\_state	& Collision 	& Expected collision	& Test result	\\ \hline
+0.473		& 53 - 57	& 55 - 60	& 0			& 0				& 0		& 0 			& Pass	\\
+7.534		& 51 - 55	& 55 - 60	& 0			& 1				& 0		& 0 			& Pass	\\
+7.871		& 51 - 55	& 55 - 60	& 0			& 1				& 0		& 0 			& Pass	\\
+3.161		& 62 - 66	& 55 - 60	& 0			& 0				& 0 		& 0 			& Pass	\\
+7.292		& 60 - 64	& 55 - 60	& 1			& 0				& 0		& 0			& Pass 	\\
+7.689		& 60 - 64	& 55 - 60	& 1			& 0				& 0		& 0			& Pass 	\\
+\end{tabular}
+\end{center}
+This test involved moving to a path next to an object, then holding the left or right joystick continuously in order to test if the car remained in the same position in order to avoid clipping into an obstacle.
+
+\subsubsection*{Car collides head on with an obstacle} 
+The car's x coordinate is matched with that of an object so that if it continues moving straight, a collision will occur. Testing was then done to verify that when a car did collide, its condition was updated and the player's location was reset. 
+\begin{center}
+\begin{tabular}{ c c c c c c c c }
+Timestep	& Car x 	& Car y	& Object y	& Object type 	& Condition	& Expected condition	& Test result	\\ \hline
+13.178	& 51-55	& 41		& 14		& Hazard		& 100		& 100				& Pass	\\
+18.767	& 47-51	& 41		& 39		& Hazard		& 80		& 80				& Pass	\\
+20.862	& 36 - 40	& 41		& 33		& Terrain		& 100		& 100				& Pass	\\
+25.534	& 53 - 57	& 41		& 41		& Terrain		& 80		& 80				& Pass	\\
+12.813	& 45 - 49	& 41		& 20		& Fuel Depot		& 100		& 100				& Pass	\\
+16.185	& - 		& - 		& - 		& Fule Depot 	& Game over & Game over			& Pass	\\ \hline
+\end{tabular}
+\end{center}
 
 \clearpage
 
@@ -984,7 +1020,7 @@ Will poll  for input to check if state should be changed to splash, game or load
 	// Lines
 	void gameover_screen_draw(void)
 \end{lstlisting}
-Will draw a prompt depending if the user has won or lost. Will also print commands that the user can press in order to change the state. 
+Will draw a prompt depending if the user has won or lost. Will also print commands that the user can press in order to change the state. Will display the distance and elapsed time as well.
 \begin{lstlisting}[style=CStyle]
 	// Lines
 	void change_screen(int new_screen)
@@ -993,6 +1029,15 @@ Changes the current state of the game to one define in the \emph{GameScreens} en
 \newline
 
 \subsection*{Testing}
+\subsubsection*{Test plan: Game over displays when game is wont or lost and can differentiate between the two}
+The game was played twice to complete this test. In the first playthrough, the game was finished by travelling long enough and the game over screen was verified to make sure that it displays game won. In the second playthrough, the car was sent straight into a fuel station in order to check if the game over screen said that we had lost the game. This test also verifies that the distance and elapsed time (timestep) are written correctly in the LCD display.
+\begin{center}
+\begin{tabular}{ c c c c c }
+Timestep	& Distance	& Game won	& Expected game won	& Test passed	\\ \hline
+62.577	& 250		& Yes		& Yes				& Passed		\\
+11.478	& 53		& No		& No				& Passed		\\ \hline
+\end{tabular}
+\end{center}
 
 \clearpage
 
@@ -1096,6 +1141,7 @@ This section expands upon \emph{Horizontal Movement} so it uses the globals and 
 	void player_car_move(int dx)
 \end{lstlisting}
 This moves the car one pixel to the left or right depending on the value of dx. It will also check if the car stays in bounds when moving. There is no need to make the x coordinate of the car change by a horizontal value because this function is called from \emph{game\_step()} (see \emph{Acceleration and Speed}), therefore this function is already affected by the speed of the car.
+\newline
 
 \subsection*{Testing}
 
@@ -1105,6 +1151,13 @@ This moves the car one pixel to the left or right depending on the value of dx. 
 %	FUEL LEVEL INCREASES GRADUALLY
 %----------------------------------------------------------------------------------------
 \section{Fuel level increases gradually}
+This section expands upon \emph{Fuel} and \emph{Fuel Depot}  so it uses the globals and functions already defined there. Instead of having to wait for 3 seconds before the car is refuelled to max, the fuel levels now increase at a rate that would go from 0 to 100 in three seconds.  
+
+\subsection*{Functions}
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	void refuel(void)
+\end{lstlisting}
 
 \clearpage
 

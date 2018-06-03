@@ -89,13 +89,11 @@ uint8_t prev_button_right_state = 0;
 uint8_t stick_centre_state;
 uint8_t prev_stick_centre_state = 0;
 uint8_t stick_left_state;
-uint8_t prev_stick_left_state = 0;
 uint8_t stick_right_state;
-uint8_t prev_stick_right_state = 0;
 uint8_t stick_up_state;
-uint8_t prev_stick_up_state = 0;
+uint8_t prev_stick_up_state;
 uint8_t stick_down_state;
-uint8_t prev_stick_down_state = 0;
+uint8_t prev_stick_down_state;
 
 // Debounce
 uint8_t button_left_history = 0;
@@ -395,8 +393,6 @@ void update(void) {
     prev_button_left_state = button_left_state;
     prev_button_right_state = button_right_state;
     prev_stick_centre_state = stick_centre_state;
-    prev_stick_left_state = stick_left_state;
-    prev_stick_right_state = stick_right_state;
     prev_stick_up_state = stick_up_state;
     prev_stick_down_state = stick_down_state;
 }
@@ -503,6 +499,8 @@ void game_screen_update(void) {
             game_screen_step();
         }
         player_speed_input();
+        // Refuel the car
+        refuel();
     } else {
         // Checks if the user wants to load or save the game
         if(((prev_stick_up_state == 0) && (stick_up_state != 0))) {
@@ -553,6 +551,13 @@ void game_screen_draw(void) {
 
         // Test: Distance travelled
         //usb_send_message(DEBUG, 3, buffer, 80, "Time step: %.3f\nDistance: %d\nSpeed: %.0f\n%d\n", time_paused, distance, speed, 0);
+
+        // Test: Collision
+        //usb_send_message(DEBUG, 6, buffer, 80, "Time step: %.3f\nCar x: %.0f\nCar x2: %.0f\nObject x: %.0f\nObject x2: %.0f\nCollided: %d\n%d\n", time_paused, player.x, player.x+player.width, hazard[0].x, hazard[0].width + hazard[0].x, check_sprite_collided(player, hazard[0]), 0);
+
+        // Test: Collision Test plan 2 (change the object to either hazard, terrain or the fuel station)
+        //usb_send_message(DEBUG, 6, buffer, 80, "Time step: %.3f\nCar x: %.0f\nCar x2: %.0f\nCar y: %.0f\nObject y: %.0f\nCondition: %d\n%d\n", time_paused, player.x, player.x+player.width, player.y, fuel_station.y, condition, 0);
+
     } else {
         // Draw the terrain
         for(int i=0; i<NUM_TERRAIN; i++) {
@@ -619,7 +624,7 @@ void game_screen_step(void) {
 
     if(++distance_counter > FUEL_FACTOR) {
         // Update the fuel
-        fuel--;
+        //fuel--;
         // Update the distance
         distance++;
         finish_line--;
@@ -628,17 +633,14 @@ void game_screen_step(void) {
     }
 
     // Check if the car has collided with an obstacle
-    /*if(check_collision(player)) {
+    if(check_collision(player)) {
         // Check if the car has collided with a fuel station
         if(check_sprite_collided(player,fuel_station)) {
             change_screen(GAMEOVER_SCREEN);
         } else {
             handle_collision();
         }
-    }*/
-
-    // Refuel the car
-    refuel();
+    }
 
     // Step through our objects
     terrain_step();
@@ -727,6 +729,10 @@ void gameover_screen_update(void) {
     if(((prev_stick_down_state == 0) && (stick_down_state != 0))) {
         game_state_load();
     }
+
+    // Test: Game over screen
+    char buffer[80];
+    usb_send_message(DEBUG, 3, buffer, 80, "Time step: %.3f\nDistance: %d\nGame lost: %d\n%d\n", elapsed_time(game_timer_counter), distance, game_over_loss, 0);
 }
 
 /**
@@ -1172,16 +1178,10 @@ void fuel_station_step(void) {
  * Checks if the car is next to a fuel station while travelling below the specified speed. 
  **/
 void check_refuel(void) {
-    // Round the coordinates of each sprite so we can equate them
-    int x = round(player.x);
-    int y = round(player.y);
-    int fuelx = round(fuel_station.x);
-    int fuely = round(fuel_station.y);
-
 	// Check if the player is directly to the left or right of the fuel station
-	if((x + player.width == fuelx) || (fuelx + fuel_station.width == x)) {
+	if((player.x + player.width == fuel_station.x) || (fuel_station.x + fuel_station.width == player.x)) {
         // Check if the player is inside the bounds of the fuel station
-        if((y >= fuely) && (y + player.height <= fuely + fuel_station.height)) {
+        if((player.y >= fuel_station.y) && (player.y + player.height <= fuel_station.y + fuel_station.height)) {
             if((speed < 3) && button_left_state) {
 			    refuelling = true;
 		        speed = 0;
@@ -1194,10 +1194,8 @@ void check_refuel(void) {
  * Refuels the car in increments. Full fuel tank will be achieved in 3 seconds
  **/
 void refuel(void) {
-	if(!refuelling) {
-		check_refuel();
-	} else {
-		// Cancel refuelling if the car starts moving again or brake is released
+	if(refuelling) {
+        // Cancel refuelling if the car starts moving again or brake is released
 		if(speed > 0 || !button_left_state) {
 			refuelling = false;
 		} else {
@@ -1210,6 +1208,8 @@ void refuel(void) {
                 refuelling = false;
             }
         }
+	} else {
+		check_refuel();
 	}
 }
 
@@ -1293,8 +1293,17 @@ void handle_collision(void) {
 		change_screen(GAMEOVER_SCREEN);
 	}
 	
+    // Test: Collision Test plan 1
+    //char buffer[200];
+    //usb_send_message(DEBUG, 6, buffer, 200, "Time step: %.3f\nCar x: %.0f\nCar x2: %.0f\nObject x: %.0f\nObject x2: %.0f\nCollided: %d\n%d\n", time_paused, player.x, player.x+player.width, hazard[0].x, hazard[0].width + hazard[0].x, check_sprite_collided(player, hazard[0]), 0);
+
     // Put the player in the middle of the road again
     player_car_reset();
+
+    // Test: Collision Test plan 2 (change the object to either hazard, terrain or the fuel station)
+    //char buffer[200];
+    //usb_send_message(DEBUG, 6, buffer, 200, "Time step: %.3f\nCar x: %.0f\nCar x2: %.0f\nCar y: %.0f\nObject y: %.0f\nCondition: %d\n%d\n", time_paused, player.x, player.x+player.width, player.y, fuel_station.y, condition, 0);
+
 
 	// Remove any hazards up to a car length above the player
 	for(int i=0; i<NUM_HAZARD; i++) {
