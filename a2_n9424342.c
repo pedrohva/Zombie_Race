@@ -166,7 +166,7 @@ const double loop_freq = 60.0;
 uint16_t loop_counter;
 
 // Bitmaps
-uint8_t car_image[] PROGMEM= {
+uint8_t car_image[] = {
     0b01100000,
     0b11110000,
     0b01100000,
@@ -239,6 +239,7 @@ void draw(void);
 
 // General draw functions
 void draw_formatted(int x, int y, char * buffer, int buffer_size, const char * format, ...);
+void sprite_draw_direct(Sprite sprite);
 
 // Screen manager
 void change_screen(int new_screen);
@@ -431,6 +432,10 @@ void draw(void) {
     }
 
     show_screen();
+
+    if(game_screen == GAME_SCREEN) {
+        sprite_draw_direct(player);
+    }
 }
 
 /**
@@ -443,6 +448,42 @@ void draw_formatted(int x, int y, char * buffer, int buffer_size, const char * f
 	va_start(args, format);
 	vsnprintf(buffer, buffer_size, format, args);
 	draw_string(x, y, buffer, FG_COLOUR);
+}
+
+/**
+ * Draw a sprite directly to the screen without the use of a buffer
+ **/
+void sprite_draw_direct(Sprite sprite) {
+    // The coordinates of the sprite
+    int x0 = (int)round(sprite.x);
+    int y0 = (int)round(sprite.y);
+
+    int bank = y0 / 8;
+    // Iterate through the x coordinates of the sprite
+    for(int x = x0; x < (x0 + sprite.width); x++) {
+        LCD_CMD(lcd_set_x_addr, x);
+        LCD_CMD(lcd_set_y_addr, bank);
+        uint8_t byte_to_write = 0;
+        bool draw = false;
+        // Iterate through the byte that spans accross the bank at the x-coordinate
+        for ( int bit_pos = 0; bit_pos < 8; bit_pos++ ) {
+            int y = 8 * bank + bit_pos;
+            if((y >= y0) && (y <= (y0 + sprite.height))) {
+                if((x >= x0) && (x <= (x0 + sprite.width))) {
+                    int dx = x - x0;
+                    int dy = y - y0;
+                    // Only draw if the sprite has a value of 1 at the bitmap location
+                    if((sprite.bitmap[(int) (dy + dx / 8)] >> (7 - dx % 8)) & 1) {
+                        SET_BIT(byte_to_write, bit_pos);
+                        draw = true;
+                    }
+                }
+            }
+        }
+        if(draw) {
+            LCD_DATA(byte_to_write);
+        }
+    }
 }
 
 /**
@@ -533,11 +574,8 @@ void game_screen_update(void) {
 void game_screen_draw(void) {
     dashboard_draw();
 
-    uint8_t* tmp = get_image_from_pgm(player);
-
     // Draw the player
-    sprite_draw(&player);
-    player.bitmap = tmp;
+    //sprite_draw(&player);
 
     // Draw the paused screen
     if(game_paused) {
@@ -1381,7 +1419,7 @@ void game_state_save(void) {
     //usb_serial_putchar(1);
     //usb_serial_putchar(4);
     //usb_serial_write((uint8_t *) data, message_size);
-    usb_send_message(SAVE, 4, data, 500, "%d\n%d\n%d\n%d\n%d\n", condition, (int)round(speed), fuel, distance, 0);
+    usb_send_message(SAVE, 4, data, 500, "%d\n%.0f\n%d\n%d\n%d\n", condition, speed, fuel, distance, 0);
     usb_serial_flush_output();
     usb_serial_flush_input();
 }

@@ -1238,6 +1238,7 @@ This section expands upon \emph{Fuel} and \emph{Fuel Depot}  so it uses the glob
 	void refuel(void)
 \end{lstlisting}
 Refuel is called every tick of the game loop. It will check if the player meets the criteria to start or continue refuelling (brake pressed and speed of 0) and then will increase the fuel amount by a rate that would make the fuel tank go from 1 to 100 in three seconds.
+\newline
 
 \subsection*{Testing}
 This test verifies that the fuel increases at a rate that would allow a fuel tank to go from 1 to 100 in three seconds. The fuel variable will be checked to make sure it is displayed correctly in the dashboard in real time as the car refuels and that partial top-ups would be allowed if the car stops refuelling halfway through. 
@@ -1350,6 +1351,22 @@ Timer0 is used for the debouncing of the inputs. In this Interrupt Service Routi
 \clearpage
 
 %----------------------------------------------------------------------------------------
+%	DIRECT SCREEN UPDATE
+%----------------------------------------------------------------------------------------
+\section{Direct screen update}
+This program has the ability to draw sprites directly to the LCD without the use of the buffer. Currently, the player's car is drawn this way, bypassing the buffer entirely. 
+\newline
+The sprites must be drawn after \emph{show\_screen()} is called. This ensures that the buffer does not delete the sprite. 
+
+\subsection*{Functions}
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	void sprite_draw_direct(Sprite sprite)
+\end{lstlisting}
+Draws the sprite directly to the LCD, bypassing the buffer. It calculates what bank and range of x-coordinates in the LCD that we want to draw to and will proceed to set the LCD pointer to the first coordinate that the sprite appears (making this function pretty fast) . Then it will trawl accross the byte that spans the bank at each x-coordinate and set the locations that contain a 1 in the bitmap to 1 in the byte. Afterwards, the byte is sent to the LCD through LCD\_DATA.
+\clearpage
+
+%----------------------------------------------------------------------------------------
 %	TIMERS AND VOLATILE DATA
 %----------------------------------------------------------------------------------------
 \section{Timers and volatile data}
@@ -1447,8 +1464,45 @@ Since the sprite array is now stored in the device's memory instead of RAM, this
 %	BIDIRECTIONAL USB COMMUNICATION	
 %----------------------------------------------------------------------------------------
 \section{Bidirectional USB communication}
+A server program has been developed that allows it to act as a companion to the Teensy - for instructions on how to run the server, see \emph{Testing Procedures}. 
 
+\subsection*{Globals - Teensy}
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	enum USBCommand {
+    SAVE = 1,
+    LOAD = 2,
+    DEBUG = 3
+};
+\end{lstlisting}
+The different commands that can be sent alongside 
+\subsection*{Functions - Teensy}
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	void usb_send_message(enum USBCommand command, int line_num ,char * buffer, int buffer_size, const char * format, ...)
+\end{lstlisting}
+A modified version of \emph{draw\_formatted()}, it will send a string to the server for processing. The command and line numbers are sent beforehand by using \emph{usb\_serial\_putchar()}.
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	void teensy_setup(void)
+\end{lstlisting}
+Calls \emph{usb\_init()} and waits until communications are established. 
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	void game_state_save(void)
+\end{lstlisting}
+It will send to the server all game defining variables in order for them to be saved. Each variable will be separated by a newline character.
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	void game_state_load(void)
+\end{lstlisting}
 
+\subsection*{Functions - Server}
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	void process(void)
+\end{lstlisting}
+Checks the usb\_serial if any new communication has been received from the Teensy. It'll use \emph{fgetc} twice in order to get a code and the number of lines sent. Depending on the code, it will call the save() (1), load() (2) or debug() (3) function.
 \clearpage
 
 %----------------------------------------------------------------------------------------

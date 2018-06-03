@@ -1,12 +1,3 @@
-/*
-**	usb_zdk.c
-**
-**	Control a sprite in ZDK using chars from a file, assumed to be
-**	a USB serial device.
-**
-**	Lawrence Buckingham, QUT, October 2017.
-**	(C) Queensland University of Technology.
-*/
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -48,6 +39,18 @@ void process(void) {
     draw_string(1, 1, "Mode:");
 
     char code = fgetc(usb_serial);
+
+    int num_lines = fgetc(usb_serial);
+    char data[num_lines][100];
+    int cnt = 0;
+    while((fgets(data[cnt], 100, usb_serial) != NULL) && cnt < num_lines) {
+        data[cnt][strcspn(data[cnt], "\n")] = 0;
+        cnt++;
+    }
+    for(int i=0; i<cnt; i++) {
+        draw_string(1,i+3,data[i]);
+    }
+
     switch(code) {
         case 1:
             draw_string(7, 1, "Saving");
@@ -64,29 +67,11 @@ void process(void) {
 }
 
 void save(void) {
-    int num_lines = fgetc(usb_serial);
-    char data[num_lines][100];
-    int cnt = 0;
-    while((fgets(data[cnt], 100, usb_serial) != NULL) && cnt < num_lines) {
-        data[cnt][strcspn(data[cnt], "\n")] = 0;
-        cnt++;
-    }
-    for(int i=0; i<cnt; i++) {
-        draw_string(1,i+3,data[i]);
-    }
+    
 }
 
 void debug(void) {
-    int num_lines = fgetc(usb_serial);
-    char data[num_lines][100];
-    int cnt = 0;
-    while((fgets(data[cnt], 100, usb_serial) != NULL) && cnt < num_lines) {
-        data[cnt][strcspn(data[cnt], "\n")] = 0;
-        cnt++;
-    }
-    for(int i=0; i<cnt; i++) {
-        draw_string(1,i+3,data[i]);
-    }
+
 }
 
 //-------------------------------------------------------------------
