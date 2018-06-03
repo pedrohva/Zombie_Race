@@ -50,7 +50,7 @@
 #define ROAD_RIGHT          1
 #define ROAD_STRAIGHT       2
 // The minimum and maximum curve allowed for the road (see road_curve)
-#define ROAD_CURVE_MIN      1
+#define ROAD_CURVE_MIN      2
 #define ROAD_CURVE_MAX      3
 // How many steps the road can take before it has to change directions
 #define ROAD_SECTION_MIN    15
@@ -314,9 +314,6 @@ int main(void) {
     // Set clock speed, contrast settings and initial register setups
     teensy_setup();
 
-    // Initialise random number generator
-    srand(100);
-
     // Go to the Splash Screen
     change_screen(START_SCREEN);
 
@@ -434,7 +431,9 @@ void draw(void) {
     show_screen();
 
     if(game_screen == GAME_SCREEN) {
-        sprite_draw_direct(player);
+        // UNCOMMENT TO DRAW THE PLAYER DIRECTLY TO THE LCD INSTEAD
+        // Remember to stop the player draw in game_screen_draw if this is uncommented
+        //sprite_draw_direct(player);
     }
 }
 
@@ -575,7 +574,7 @@ void game_screen_draw(void) {
     dashboard_draw();
 
     // Draw the player
-    //sprite_draw(&player);
+    sprite_draw(&player);
 
     // Draw the paused screen
     if(game_paused) {
@@ -741,6 +740,8 @@ void game_screen_step(void) {
  * game
  **/
 void game_screen_setup(void) {
+    // Initialise random number generator
+    srand(TCNT0);
     game_paused = 0;
     distance_counter = 0;
     speed_counter = 0;
@@ -1354,6 +1355,31 @@ bool check_sprite_collided(Sprite sprite1, Sprite sprite2) {
 }
 
 bool check_sprite_collided_pixel(Sprite sprite1, Sprite sprite2) {
+    /*
+    int y1 = (int)round(sprite1.y);
+    int y2 = (int)round(sprite2.y);
+    int x1 = (int)round(sprite1.x);
+    int x2 = (int)round(sprite2.x);
+
+    for(int dx = 0; dx < sprite1.width; dx++) {
+        for(int dy = 0; dy < sprite1.height; dy++) {
+            int x = x1 + dx;
+            int y = y1 + dy;
+
+            if((x > x2) && (x < (x2 + sprite2.width))) {
+                if((y > y2) && (y < (y2 + sprite2.height))) {
+                    if((sprite1.bitmap[(int) (dy + dx / 8)] >> (7 - dx % 8)) & 1) {
+                        int dx2 = x2 - x;
+                        int dy2 = y2 - y;
+                        if((sprite2.bitmap[(int) (dy2 + dx2 / 8)] >> (7 - dx2 % 8)) & 1) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+    }*/
+
     return true;
 }
 
@@ -1399,7 +1425,6 @@ void game_state_save(void) {
     //uint16_t game_timer_counter;
     // Road
     //uint8_t road[LCD_Y];            // The x-coordinates of each road piece
-    //double road_y;                  // Used to make sure the road stays synced with the other objects in the playing field
     //uint8_t road_counter;           // Counts how many steps the road has taken before being moved horizontally
     //uint8_t road_curve;             // This decides how many times the road must move before it is moved horizontally
     //int road_direction;
@@ -1411,15 +1436,10 @@ void game_state_save(void) {
     // Fuel station
     //Sprite fuel_station;
     //double fuel_station_counter;   // Counts down to when the fuel station can spawn again
-    //bool refuelling;
     char data[500];
-    //int message_size = sprintf(data, "%d\n%d\n%d\n%d\n%d\n%d\n", 1, condition, (int)floor(speed), fuel, distance, 0);
-    //char message[message_size+1];
-    //int size = sprintf(message, "%d\n%s", message_size, data);
-    //usb_serial_putchar(1);
-    //usb_serial_putchar(4);
-    //usb_serial_write((uint8_t *) data, message_size);
-    usb_send_message(SAVE, 4, data, 500, "%d\n%.0f\n%d\n%d\n%d\n", condition, speed, fuel, distance, 0);
+    usb_send_message(SAVE, 15, data, 500, "%d\n%.0f\n%.0f\n%d\n%d\n%d\n%.3f\n%d\n%d\n%d\n%d\n%d\n%d\n%d\n%.3f\n%d\n", 
+                                        condition, speed, fuel, distance, game_timer_counter, &road, road_counter, road_curve, road_direction, road_section_length, &player,
+                                        &terrain, &hazard, &fuel_station, fuel_station_counter, 0);
     usb_serial_flush_output();
     usb_serial_flush_input();
 }

@@ -40,17 +40,6 @@ void process(void) {
 
     char code = fgetc(usb_serial);
 
-    int num_lines = fgetc(usb_serial);
-    char data[num_lines][100];
-    int cnt = 0;
-    while((fgets(data[cnt], 100, usb_serial) != NULL) && cnt < num_lines) {
-        data[cnt][strcspn(data[cnt], "\n")] = 0;
-        cnt++;
-    }
-    for(int i=0; i<cnt; i++) {
-        draw_string(1,i+3,data[i]);
-    }
-
     switch(code) {
         case 1:
             draw_string(7, 1, "Saving");
@@ -66,12 +55,54 @@ void process(void) {
     show_screen();
 }
 
-void save(void) {
+void decode(char* data, int index) {
     
 }
 
-void debug(void) {
+void save(void) {
+    //uint8_t condition;
+    //double speed;
+    //double fuel;
+    //double distance;
+    //uint16_t game_timer_counter;
+    // Road
+    //uint8_t road[LCD_Y];            // The x-coordinates of each road piece
+    //uint8_t road_counter;           // Counts how many steps the road has taken before being moved horizontally
+    //uint8_t road_curve;             // This decides how many times the road must move before it is moved horizontally
+    //int road_direction;
+    //uint8_t road_section_length;    // How many steps the road has taken in the current length
+    // The player
+    //Sprite player;
+    //Sprite terrain[NUM_TERRAIN];   
+    //Sprite hazard[NUM_HAZARD];  
+    // Fuel station
+    //Sprite fuel_station;
+    //double fuel_station_counter;   // Counts down to when the fuel station can spawn again
 
+    int num_lines = fgetc(usb_serial);
+    char data[num_lines][100];
+    int cnt = 0;
+    while((fgets(data[cnt], 100, usb_serial) != NULL) && cnt < num_lines) {
+        data[cnt][strcspn(data[cnt], "\n")] = 0;
+        decode(data[cnt], cnt);
+        cnt++;
+    }
+    for(int i=0; i<cnt; i++) {
+        draw_string(1,i+3,data[i]);
+    }
+}
+
+void debug(void) {
+    int num_lines = fgetc(usb_serial);
+    char data[num_lines][100];
+    int cnt = 0;
+    while((fgets(data[cnt], 100, usb_serial) != NULL) && cnt < num_lines) {
+        data[cnt][strcspn(data[cnt], "\n")] = 0;
+        cnt++;
+    }
+    for(int i=0; i<cnt; i++) {
+        draw_string(1,i+3,data[i]);
+    }
 }
 
 //-------------------------------------------------------------------

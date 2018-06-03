@@ -121,6 +121,10 @@
 %	EXECUTIVE SUMMARY
 %----------------------------------------------------------------------------------------
 \section*{Executive Summary}
+The objective of this report is to give an overview on the process that went into creating \emph{Zombie Race}. Each section contains information on the implementation of a feature in the game. Multiple tests were conducted were appropriate in order to prove that the required features were correctly implemented.
+\newline
+\newline
+I have completed Part A and B of the assessment brief and the majority of Part C. The full source code for the game and accompanying server have been submitted via AMS (submission reference number: edb7ce0b-e5ff-4229-8f3d-b76a9ad26a9a).
 
 \clearpage
 
@@ -208,7 +212,7 @@ Load game 	& Joystick down 	& SW1	\\
 \newline
 The basic architecture of the program is that of a state machine. The states for this program are the different screens which the user can see and each provides different functionalities that will be further explored in their specific sections. 
 \begin{lstlisting}[style=CStyle]
-	// Lines 
+	// Lines 136 - 140
 	enum GameScreens {
 		START_SCREEN,
 		GAME_SCREEN,
@@ -217,17 +221,17 @@ The basic architecture of the program is that of a state machine. The states for
 \end{lstlisting}
 After initial setup is complete, the program enters an infinite loop that runs at a rate of about 60 times per second. Inside the loop are two functions, \emph{update()} and \emph{draw()}.
 \begin{lstlisting}[style=CStyle]
-	// Lines 
+	// Lines 382 - 411
 	void update(void)
 \end{lstlisting}
 This function calls the specific update function for the current state the game is in. It will also handle input from \emph{Pot0} that controls the current contrast level of the LCD screen and will perform some operations to allow other functions to use edge detection of the teensy's inputs (ie. only update when clicked). 
 \begin{lstlisting}[style=CStyle]
-	// Lines 
+	// Lines 416 - 411
 	void draw(void)
 \end{lstlisting}
 Will call the draw function of the current state the program is in. Draw function do not change any variables and serve only to write to the LCD through the use of a buffer or directly. Direct draw calls to the LCD will be further explored in the section \emph{Direct screen update}. 
 \begin{lstlisting}[style=CStyle]
-	// Lines 
+	// Lines 1470 - 1502
 	void teensy_setup(void)
 \end{lstlisting}
 Performs all preliminary calls to setup registers and variables that will be used throughout the program. Will set the clock speed to 8 MHz and the initial LCD contrast to default. The other calls that occur in this functions will be explored in the later sections as they become relevant. 
@@ -260,7 +264,7 @@ Figure \ref{test_debug} shows the result in the server program when the followin
 	\label{test_debug} 
 	\end{center}
 \end{figure}
-To improve readability of the test plan in the later sections, the information received from the server will be scribed into a table format. Under each teest case, the lines that contain the pieces of code that need to be uncommented to replicate the test are included. 
+To improve readability of the test plan in the later sections, the information received from the server will be scribed into a table format. Code that was used to perform the tests can be seen in the function \emph{game\_screen\_draw()} - Lines: 590 - 627.
 \newline
 \newline
 Testing was done by using a srand seed of 100 in order to allow reproduction later of the same tests. 
@@ -274,27 +278,25 @@ The splash screen is the first screen shown when the game is started. After the 
 
 \subsection*{Globals}
 \begin{lstlisting}[style=CStyle]
-	// Line 
+	// Line 137
 	GameScreens START_SCREEN;
 \end{lstlisting}
 The value \emph{START\_SCREEN} from the \emph{GameScreens} enum is associated with the splash screen. For more info on the \emph{GameScreens} enum global, see \emph{Program Overview}. 
 \begin{lstlisting}[style=CStyle]
-	// Line 
-	uint8_t button_left_state;
-	// Line
-	uint8_t button_right_state;
+	// Line 85
+	uint8_t controls_states[7];
 \end{lstlisting}
 The current states of the SW2 (left) and SW3 (right) buttons (for more info see \emph{Debouncing}). A state of 1 means the button is pressed. The splash screen will change to the game screen as soon as any of these two variables have a value of 1. 
 \newline
 
 \subsection*{Functions}
 \begin{lstlisting}[style=CStyle]
-	// Lines 
+	// Lines 515 - 526
 	void start_screen_update(void)
 \end{lstlisting}
 The update function associated with the splash screen that will be called every tick of the game loop. Will check if SW2 or SW3 have been pressed and call \emph{change\_screen(GAME\_SCREEN)} if true.
 \begin{lstlisting}[style=CStyle]
-	// Lines 
+	// Lines 531 - 535
 	void start_screen_draw(void)
 \end{lstlisting}
 Will call \emph{draw\_string()} to print the name of the game, name of the author and student number to the teensy LCD.  
@@ -327,19 +329,19 @@ A sub-window in the LCD which displays stats about the player car such as the co
 
 \subsection*{Globals}
 \begin{lstlisting}[style=CStyle]
-	// Lines 110 - 112
+	// Lines 92 - 94
 	uint8_t condition;
 	uint8_t fuel;
 	double speed;
 \end{lstlisting}
 The variables that hold information about the car. They are modified by other functions thus the dashboard only reads their current values.
 \begin{lstlisting}[style=CStyle]
-	// Line
+	// Line 130
 	bool refuelling;
 \end{lstlisting}
 Used to check if the car is currently refuelling. \emph{dashboard\_draw()} will check this and draw the character 'R' if true.
 \begin{lstlisting}[style=CStyle]
-	// Line
+	// Line 30
 	#define DASHBOARD_BORDER_X  26
 \end{lstlisting}
 The right-most x coordinate of the dashboard. The border is drawn at this line
@@ -347,7 +349,7 @@ The right-most x coordinate of the dashboard. The border is drawn at this line
 
 \subsection*{Functions}
 \begin{lstlisting}[style=CStyle]
-	// Lines 
+	// Lines 658 - 679
 	void dashboard_draw(void);
 \end{lstlisting}
 Called in the draw function of the game screen. Will draw the line separating the dashboard from the rest of the game screen then will call the \emph{draw\_string()} and \emph{draw\_formatted()} functions in other to display the current game information. If the player is currently refuelling, will display the character 'R' at the bottom. 
@@ -376,43 +378,42 @@ The user can pause the current game by pressing the center joystick command (SW1
 
 \subsection*{Globals}
 \begin{lstlisting}[style=CStyle]
-	// Line
+	// Line 95
 	uint8_t distance;
-	// Line
+	// Line 103
 	uint16_t game_timer_counter;
 \end{lstlisting}
 The information that is displayed in the Paused View. These variables are modifed in other sections and Paused View only reads their current value.
 \begin{lstlisting}[style=CStyle]
-	// Line
+	// Line 104
 	uint8_t game_paused;
 \end{lstlisting}
 Determines if the game's Paused View should be active or not. Modified by the centre Joystick.
 \begin{lstlisting}[style=CStyle]
-	// Line
+	// Line 105
 	double time_paused;
 \end{lstlisting}
 The return value from \lstinline{elapsed_time(game_timer_counter)}. The value is set when the game is paused to avoid the thrid decimal point of the time value fluctuating widly due to floating point precision.
 \begin{lstlisting}[style=CStyle]
-	// Lines
-	uint8_t stick_centre_state;
-	uint8_t prev_stick_centre_state;
+	// Line 85
+	uint8_t controls_states[7];
 \end{lstlisting}
-\emph{game\_paused} is only toggled when the middle joystick is clicked and just held. This avoid the game pausing and un-pausing multiple times when the user only intended to pause or unpause once with one click. 
+\emph{game\_paused} is only toggled when the middle joystick is clicked and just held. This avoid the game pausing and un-pausing multiple times when the user only intended to pause or unpause once with one click. For more info see \emph{Debouncing}.
 \newline
 
 \subsection*{Functions}
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 347 - 350
 	double elapsed_time(uint16_t timer_counter)
 \end{lstlisting}
 Used to get the time since the game started in seconds. Discussed in more detail in \emph{Timer and volatile data}.
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 540 - 571
 	void game_screen_update(void)
 \end{lstlisting}
 Checks if the middle joystick (SW1) has been clicked in order to toggle \emph{game\_paused}. Will also get the time that the game was paused.
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 576 - 653
 	void game_screen_draw(void)
 \end{lstlisting}
 If the game is paused, instead of drawing the game screen as usual, it will draw the car and display the stats required. The dashboard is also drawn in order to display as much information as possible about the game.
@@ -468,11 +469,10 @@ When the user moves the Joystick to the left or right, the car will also move in
 
 \subsection*{Globals}
 \begin{lstlisting}[style=CStyle]
-	// Lines
-	uint8_t stick_left_state;
-	uint8_t stick_right_state;
+	// Line 85
+	uint8_t controls_states[7];
 \end{lstlisting}
-If any of the states are true, the car will move left or right. 
+If any of the states are true, the car will move left or right. For more info see \emph{Debouncing}
 \newline
 
 \subsection*{Functions}
@@ -482,12 +482,12 @@ If any of the states are true, the car will move left or right.
 \end{lstlisting}
 Checks if the joystick has moved to the left or right and calls \emph{player\_car\_move()}. As \emph{game\_screen\_step()} is only called if the speed is not zero, this already makes sure the non-zero condition is met.
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 685 - 739
 	bool in_bounds(double x, double y);
 \end{lstlisting}
 Will check if the car will go out of bounds by moving off the game screen to the right or into the dashboard area to the left.
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 852 - 867
 	void player_car_move(int dx);
 \end{lstlisting}
 If the car will be in bounds, moves it one pixel in the specified direction.
@@ -519,36 +519,35 @@ The user can choose to accelerate the car by pressing the left button (SW2) or d
 
 \subsection*{Globals}
 \begin{lstlisting}[style=CStyle]
-	// Lines
-	uint8_t button_left_state;
-	uint8_t button_right_state;
+	// Line 85
+	uint8_t controls_states[7];
 \end{lstlisting}
-The left button will accelerate the car and the right button will decelerate.
+The left button will accelerate the car and the right button will decelerate. For more info see \emph{Debouncing}
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 44 - 46
 	#define SPEED_MIN           0      
 	#define SPEED_MAX           10
-	#define SPEED_OFFROAD_MAX   10
+	#define SPEED_OFFROAD_MAX   3
 \end{lstlisting}
 Will set the limits for the speed.
 \begin{lstlisting}[style=CStyle]
-	\Lines 
+	\Lines 42 - 43
 	#define SPEED_THRESH        8
 	#define SPEED_FACTOR        8
 \end{lstlisting}
 Used to calculate the increase in speed with every loop iteration.
 \begin{lstlisting}[style=CStyle]
-	// Line
+	// Line 29
 	#define TIMER1_FREQ    7812
 \end{lstlisting}
 The frequency TIMER1 is set to. 
 \begin{lstlisting}[style=CStyle]
-	// Line
+	// Line 94
 	double speed;
 \end{lstlisting}
 The current speed value of the car.
 \begin{lstlisting}[style=CStyle]
-	// Line
+	// Line 98
 	double speed_counter;
 \end{lstlisting}
 Used to decide when to update the game logic. 
@@ -556,33 +555,33 @@ Used to decide when to update the game logic.
 
 \subsection*{Functions}
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 1470 - 1502
 	void teensy_setup(void)
 \end{lstlisting}
 Will set Timer1 to CTC mode in a way that ISR(TIMER1\_COMPA\_vect) is called 60 times a second. Section \emph{Timers and volatile data} goes more indepth on the values for the registers. 
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 1609 - 1614
 	ISR(TIMER1_COMPA_vect)
 \end{lstlisting}
 If the game isn't paused and the program state is in the game screen, it will increase the speed counter by a rate of speed/SPEED\_FACTOR.
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 540 - 571
 	void game_screen_update(void);
 \end{lstlisting}
 If the speed\_counter is greater than SPEED\_THRESH, the game logic will be updated by one tick. 
 \newpage
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 685 - 739
 	void game_screen_step(void)
 \end{lstlisting}
 Updates all game logijc by one tick. Since it's called by \emph{game\_screen\_update()} when the \emph{speed\_counter} is greater than \emph{SPEED\_THRESH}, every function or variable called from this function will be affected by how fast the car is moving.
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 872 - 926
 	void player_speed_input(void);
 \end{lstlisting}
 Will increase or decrease the speed depending if the accelerator or brake is pressed. \emph{Accelerator and brake} will go more in depth regarding this function. This function will ensure the speed is constrained by the limits set.
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 1296 - 1306
 	bool offroad(Sprite sprite)
 \end{lstlisting}
 Checks if the sprite sent by the input is outside the boundaries of the road (both to the left or to the right of the road).
@@ -624,28 +623,28 @@ The amount of scenery that can spawn in the game is based on the dimensions of t
 \end{lstlisting}
 The maximum amount of terrain obstacles that can appear at one time.
 \begin{lstlisting}[style=CStyle]
-	// Line 
+	// Line 70
 	Sprite terrain[NUM_TERRAIN]; 
 \end{lstlisting}
 An array that holds all sprites representing terrain.
 \begin{lstlisting}[style=CStyle]
-	// Line 
+	// Line 76
 	#define NUM_HAZARD          2
 \end{lstlisting}
 The maximum amount of road hazards that can appear at one time. 
 \begin{lstlisting}[style=CStyle]
-	// Line 
+	// Line 124
 	Sprite hazard[NUM_HAZARD];
 \end{lstlisting}
 An array that holds all sprites representing road hazards.
 \begin{lstlisting}[style=CStyle]
-	// Lines 
+	// Lines 66 - 67
 	#define TERRAIN     0
 	#define HAZARD      1
 \end{lstlisting}
 Used to define the different types of obstacles.
 \begin{lstlisting}[style=CStyle]
-	// Lines 
+	// Lines 70 - 73
 	#define NUM_TERRAIN_TYPES   2
 	#define TERRAIN_TREE        0
 	#define TERRAIN_SIGN        1
@@ -666,54 +665,54 @@ Used to differentiate between the different types of road hazards.
 Holds information about a sprite's bitmap for each different type of terrain and hazard.
 \newpage
 \begin{lstlisting}[style=CStyle]
-	// Line
+	// Line 82
 	#define HAZARD_SPAWN_CHANCE 15
 \end{lstlisting}
 The percentage chance that a hazard that is out of bounds will spawn again (15 is quite high as this is called every game step tick).
 
 \subsection*{Functions}
 \begin{lstlisting}[style=CStyle]
-	// Lines 
+	// Lines 978 - 983
 	void terrain_image_setup(void);
 \end{lstlisting}
 Setup the sprites in \emph{terrain\_image} that will be used as a reference for each terrain type.
 \begin{lstlisting}[style=CStyle]
-	// Lines 
+	// Lines 1095 - 1100
 	void hazard_image_setup(void);
 \end{lstlisting}
 Setup the sprites in \emph{hazard\_image} that will be used as a reference for each hazard type.
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 988 - 1007
 	void terrain_setup(void);
 \end{lstlisting}
 Iterates through the \emph{terrain} array and calls \emph{terrain\_reset()} in order to create a type of terrain for each index. Not all terrain may appear on the screen at once (some may be spawned above the playing area because there is no more space).
 \begin{lstlisting}[style=CStyle]
-	// Lines 
+	// Lines 1013 - 1076
 	void terrain_reset(int index, int y_bot);
 \end{lstlisting}
 Moves the terrain so that it's bottom y-coordinate is at y\_bot. The type of terrain and it's x-coordinate will also be randomised. Nothing will happen if it collides with another obstacle which means \emph{terrain\_step()} will call this again next game tick for the same index (as it'll still be scrolling further below the screen).
 \begin{lstlisting}[style=CStyle]
-	// Lines 
+	// Lines 1082 - 1090
 	void terrain_step(void);
 \end{lstlisting}
 Steps all of the terrain sprites in the terrain array and then checks if any have gone out of bounds below the screen. Will then attempt to reset the terrain with \emph{terrain\_reset()}. Called every time \emph{game\_step()} is called.
 \begin{lstlisting}[style=CStyle]
-	// Lines 
+	// Lines 1105 - 1124
 	void hazard_setup(void);
 \end{lstlisting}
 Creates hazard sprites and fill the hazard array with them. Will then call \emph{hazard\_reset()} in order to put them on the screen.
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 1130 - 1168
 	void hazard_reset(int index, int y_bot);
 \end{lstlisting}
 Moves the hazard corresponding to the index to the game world so that its bottom y coordinate matches y\_bot. The type of hazard and its x-coordinate will also be randomised. Nothing will happen if it collides with another obstacle which means \emph{hazard\_step()} will call this again next game tick. The hazard and terrain setup, update and reset functions are similar but need to be separated due to different arrays being used and both having different limitations on where they can be spawned.
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 1173 - 1185
 	void hazard_step(void);
 \end{lstlisting}
 Steps all of the hazard sprites in the hazards array and then checks if any have gone out of bounds below the screen. Will then attempt to reset the hazard with \emph{hazard\_reset()}. Called every time \emph{game\_step()} is called.
 \begin{lstlisting}[style=CStyle]
-	// Lines 
+	// Lines 576 - 653
 	void game_screen_draw(void);
 \end{lstlisting}
 Will draw all of the obstacles to the game screen.
@@ -747,18 +746,18 @@ The Fuel Depot is a type of obstacle that refuels the player's car if it parks n
 
 \subsection*{Globals}
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 62 - 63
 	#define FUEL_STATION_MIN    140    
 	#define FUEL_STAION_MAX     180
 \end{lstlisting}
 The minimum and maximum distance from the top of the screen that the fuel station can spawn. Note that these numbers aren't the distance values shown in the Paused View but are in how many game steps it would take to the fuel station to appear at the top of the screen.
 \begin{lstlisting}[style=CStyle]
-	// Line 
+	// Line 128
 	Sprite fuel_station;
 \end{lstlisting}
 The sprite which represents the fuel depot.
 \begin{lstlisting}[style=CStyle]
-	// Line
+	// Line 129
 	int fuel_station_counter; 
 \end{lstlisting}
 Counts down the game steps until the fuel station can spawn on top of the screen.
@@ -766,22 +765,22 @@ Counts down the game steps until the fuel station can spawn on top of the screen
 
 \subsection*{Functions}
 \begin{lstlisting}[style=CStyle]
-	// Lines 
+	// Lines 1191 - 1231
 	void fuel_station_reset(void)
 \end{lstlisting}
 Will spawn the fuel station at the top of the screen. This will force the next road section (see \emph{Curved road}) to be a straight section. This functions randomly chooses which side of the road to spawn and will also remove any terrain in the way.
 \begin{lstlisting}[style=CStyle]
-	// Lines 
+	// Lines 1237 - 1252
 	void fuel_station_step(void)
 \end{lstlisting}
 Will step the sprite for the fuel depot by moving it downwards one pixel and then check if it went out of bounds. If it has, it will reset the \emph{fuel\_station\_counter} to a value between the limits set by the constants.
 \begin{lstlisting}[style=CStyle]
-	// Lines 
+	// Lines 745 - 784
 	void game_screen_setup(void)
 \end{lstlisting}
 Will set the \emph{fuel\_station\_counter} to a value between the limits set by the constants. 
 \begin{lstlisting}[style=CStyle]
-	// Lines 
+	// Lines 576 - 653
 	void game_screen_draw(void)
 \end{lstlisting}
 Will draw the fuel staion to the playing area. 
@@ -814,22 +813,22 @@ The car start with a fuel tank which decreases as it moves. The faster it moves,
 
 \subsection*{Globals}
 \begin{lstlisting}[style=CStyle]
-	// Line 
+	// Line 93
 	double fuel;
 \end{lstlisting}
 The current amount of fuel available to the player.When it reaches 0, the game is over.
 \begin{lstlisting}[style=CStyle]
-	// Line 
+	// Line 130
 	bool refuelling;
 \end{lstlisting}
 Represents whether the car is currently refuelling.
 \begin{lstlisting}[style=CStyle]
-	// Line 
+	// Line 60
 	#define FUEL_FACTOR         3
 \end{lstlisting}
 Affects the rate at which the fuel decreases.
 \begin{lstlisting}[style=CStyle]
-	// Line 
+	// Line 97
 	uint8_t distance_counter;
 \end{lstlisting}
 When the distance counter is greater than the \emph{FUEL\_FACTOR}, fuel is decreased by one and distance increased by one. As the distance counter is incremented every time the game is stepped, it means  the rate that fuel depletes is affected by the speed of the car.
@@ -837,17 +836,17 @@ When the distance counter is greater than the \emph{FUEL\_FACTOR}, fuel is decre
 
 \subsection*{Functions}
 \begin{lstlisting}[style=CStyle]
-	// Lines 
+	// Lines 1257 - 1268
 	void check_refuel();
 \end{lstlisting}
 Checks if the car meets all of the criteria to begin refuelling (next to a fuel station and travelling at a speed of 2 or less). Then switches the \emph{refuelling} variable to true, sets speed to 0 and starts \emph{refuel\_timer}.
 \begin{lstlisting}[style=CStyle]
-	// Lines 
+	// Lines 1273 - 1291
 	void refuel();
 \end{lstlisting}
 Called every time the game steps. If the car isn't already refuelling, call \emph{check\_refuel()}. Otherwise it will make sure the car's speed has remained at 0 and the brake is pressed.Every time this function is called, the fuel is increased by a rate described in the section \emph{Fuel level increases gradually}.
 \begin{lstlisting}[style=CStyle]
-	// Lines 
+	// Lines 685 - 739
 	void game_screen_step(void)
 \end{lstlisting}
 Will check if the fuel is above 0 and will give the game over message when the fuel tank is empty. Will also increment \emph{distance\_counter}.
@@ -879,17 +878,17 @@ Timestep	& Fuel		& Expected fuel	& Speed	& Test result		\\ \hline
 \section{Distance Travelled}
 \subsection*{Globals}
 \begin{lstlisting}[style=CStyle]
-	// Line 
+	// Line 97
 	int distance_counter;
 \end{lstlisting}
 Incremented every time the game steps. Distance is increased by one every time the counter is larger than \emph{FUEL\_FACTOR}.
 \begin{lstlisting}[style=CStyle]
-	// Line
+	// Line 95
 	uint8_t distance;
 \end{lstlisting}
 Represents the units of distance travelled by the car since the game started. 
 \begin{lstlisting}[style=CStyle]
-	// Line 
+	// Line 96
 	uint8_t finish_line;
 \end{lstlisting}
 The distance that the player has to complete before they win the game. Setup in \emph{game\_screen\_setup(void)}. Currently hardcoded to 250 (no reason to make another global).
@@ -897,7 +896,7 @@ The distance that the player has to complete before they win the game. Setup in 
 
 \subsection*{Functions}
 \begin{lstlisting}[style=CStyle]
-	// Lines 
+	// Lines 685 - 739
 	void game_screen_step(void)
 \end{lstlisting}
 Will increment \emph{distance\_counter} and will check if the distance can be increased as well. Will decrease \emph{finish\_line} every time the distance is updated and when it reaches 0, the player has won.
@@ -930,7 +929,7 @@ Collision uses simple bounding box detection - this functionality is expanded in
 
 \subsection*{Globals}
 \begin{lstlisting}[style=CStyle]
-	// Line 
+	// Line 92
 	uint8_t condition;
 \end{lstlisting}
 The only global added by this section. Collision detection makes use mostly of globals already implemented when the scenery is created. 
@@ -938,27 +937,27 @@ The only global added by this section. Collision detection makes use mostly of g
 
 \subsection*{Functions}
 \begin{lstlisting}[style=CStyle]
-	// Lines 
+	// Lines 1311 - 1338
 	bool check_collision(Sprite sprite);
 \end{lstlisting}
 Iterates through every obstacle in the game and checks if the sprite passed to this function collides with any of therm.
 \begin{lstlisting}[style=CStyle]
-	// Lines 
+	// Lines 1343 - 1356
 	bool check_sprite_collided(Sprite sprite1, Sprite sprite2)
 \end{lstlisting}
 Checks if the two sprites passed to this function collide with each other.
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 685 - 739
 	void game_screen_step(void)
 \end{lstlisting}
 Will check if the player has collided with any object every time the car moves. Will also check if the car has collided with a fuel depot and throw the game over dialogue if it has.
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 1390 - 1416
 	void handle_collision(void)
 \end{lstlisting}
 When it's found that the player has collided with an object that is not the fuel depot, this function will reset the location of the player and clear any hazards on the way while also reducing the car's condition and changing to the game over screen if it reaches 0.
 \begin{lstlisting}[style=CStyle]
-	// Lines 
+	// Lines 852 - 867
 	void player_car_move(int dx) 
 \end{lstlisting}
 Won't allow the player to move if it means colliding sideways with an obstacle
@@ -1011,7 +1010,7 @@ Due to the program being a state machine, the game can be easily restarted by ch
 
 \subsection*{Globals}
 \begin{lstlisting}[style=CStyle]
-	// Line 
+	// Line 99
 	bool game_over_loss;
 \end{lstlisting}
 Represents if the game was over either through a loss (true) or win (false).
@@ -1019,17 +1018,17 @@ Represents if the game was over either through a loss (true) or win (false).
 
 \subsection*{Functions}
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 790 - 809
 	void gameover_screen_update(void)
 \end{lstlisting}
 Will poll  for input to check if state should be changed to splash, game or load.
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 814 - 825
 	void gameover_screen_draw(void)
 \end{lstlisting}
 Will draw a prompt depending if the user has won or lost. Will also print commands that the user can press in order to change the state. Will display the distance and elapsed time as well.
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 495 - 510
 	void change_screen(int new_screen)
 \end{lstlisting}
 Changes the current state of the game to one define in the \emph{GameScreens} enum. If the state is changing to the \emph{GAME\_SCREEN}, will also call a setup function first in onder to reset all of the game variabels. 
@@ -1056,51 +1055,51 @@ The road in \emph{Zombie Race} takes a smoothly varying but unpredictable path. 
 
 \subsection*{Globals}
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 49 - 51
 	#define ROAD_LEFT           0
 	#define ROAD_RIGHT          1
 	#define ROAD_STRAIGHT       2
 \end{lstlisting}
 Determines the direction of movement for the current section of road being created.
 \begin{lstlisting}[style=CStyle]
-	// Line 
+	// Line 53 - 54
 	#define ROAD_CURVE_MIN      1
 	#define ROAD_CURVE_MAX      3
 \end{lstlisting}
 How smooth the road turns. A larger value means the road takes longer to change it's x value. 
 \begin{lstlisting}[style=CStyle]
-	// Line 
+	// Line 56 - 57
 	#define ROAD_SECTION_MIN    15
 	#define ROAD_SECTION_MAX    35
 \end{lstlisting}
 How many steps a road can take before the direction of movement is change (the movement can change to be in the same direction). 
 \begin{lstlisting}[style=CStyle]
-	// Line 
+	// Line 112
 	uint8_t road[LCD_Y]; 
 \end{lstlisting}
 The lx coordinates of the left side of the road packed into an array the size of the height of the LCD. 
 \begin{lstlisting}[style=CStyle]
-	// Line 
+	// Line 113
 	uint8_t road_width = 16; 
 \end{lstlisting}
 The width of the road. This is used in conjunction with the road array in order to draw the right side of the road or detection if an object is offroad.
 \begin{lstlisting}[style=CStyle]
-	// Line 
+	// Line 114
 	uint8_t road_counter;
 \end{lstlisting}
 Counts how many steps the road has taken. After it passes the value of \emph{road\_curve}, the road will move one pixel in the current direction it's travelling.
 \begin{lstlisting}[style=CStyle]
-	// Line 
+	// Line 115
 	uint8_t road_curve;
 \end{lstlisting}
 The current curve value of the road. Will be between the limits (inclusive) set by the \emph{ROAD\_CURVE} constants.
 \begin{lstlisting}[style=CStyle]
-	// Line 
+	// Line 116
 	uint8_t road_direction;
 \end{lstlisting}
 The current direction of travel of the road.
 \begin{lstlisting}[style=CStyle]
-	// Line 
+	// Line 117
 	uint8_t road_section_length;
 \end{lstlisting}
 How many steps the road has taken with the current section. It is given a value set by the limits \emph{ROAD\_SECTION} when a new section is created and is decremented every time the road steps. Once it reaches zero, a new road section is created. 
@@ -1108,7 +1107,7 @@ How many steps the road has taken with the current section. It is given a value 
 
 \subsection*{Functions}
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 932 - 973
 	void road_step(void)
 \end{lstlisting}
 Called every time the game steps. Will shift the \emph{road} array to the right one place, effectively stepping the road down by one pixel. Depending on the properties of the current road section, it will then decide where to place the new x-coordinate in \emph{road[0]}.
@@ -1140,7 +1139,7 @@ This section expands upon \emph{Acceleration and Speed} so it uses the globals a
  
 \subsection*{Functions}
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 872 - 926
 	void player_speed_input(void)
 \end{lstlisting}
 Called every iteration of the game loop. It will read the state of SW2 and SW3 and modify the speed variable by a rate appropriate to the condition (outlined in the test plan). Will always make sure the speed is kept to its bounds whether offroad or on the road. This function will verify that when the accelerator is pressed, the brake will have no effect on the state of the car and vice-versa. 
@@ -1204,7 +1203,7 @@ This section expands upon \emph{Horizontal Movement} so it uses the globals and 
 
 \subsection*{Functions}
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 852 - 867
 	void player_car_move(int dx)
 \end{lstlisting}
 This moves the car one pixel to the left or right depending on the value of dx. It will also check if the car stays in bounds when moving. There is no need to make the x coordinate of the car change by a horizontal value because this function is called from \emph{game\_step()} (see \emph{Acceleration and Speed}), therefore this function is already affected by the speed of the car.
@@ -1234,7 +1233,7 @@ This section expands upon \emph{Fuel} and \emph{Fuel Depot}  so it uses the glob
 
 \subsection*{Functions}
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 1273 - 1291 
 	void refuel(void)
 \end{lstlisting}
 Refuel is called every tick of the game loop. It will check if the player meets the criteria to start or continue refuelling (brake pressed and speed of 0) and then will increase the fuel amount by a rate that would make the fuel tank go from 1 to 100 in three seconds.
@@ -1263,7 +1262,7 @@ Pot1 controls the contrast levels. This is mostly a helper function to allow dif
 
 \subsection*{Globals}
 \begin{lstlisting}[style=CStyle]
-	// Line
+	// Line 26
 	#define LCD_MAX_CONTRAST    0x7F
 \end{lstlisting}
 Controls the maximum contrast that the potentionmeter can set.
@@ -1271,22 +1270,22 @@ Controls the maximum contrast that the potentionmeter can set.
 
 \subsection*{Functions}
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 1504 - 1507
 	void adc_init(void)
 \end{lstlisting}
 Enables the ADC and sets the prescaler to the maximum value possible (128) as there's no need for a high frequency. 
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 1509 - 1524
 	uint16_t adc_read(uint8_t channel)
 \end{lstlisting}
 Set the voltage reference selection to be \(AV_{CC}\) with external capacitor on AREF pin. Select the analog input channel based on the \emph{channel} variable and also set the differential gain to 1. Will then begin conversion then return the digital value for the channel (channel 1 = Pot1 and 0 = Pot0).
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 382 - 411
 	void update(void)
 \end{lstlisting}
 
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 872 - 926
 	void player_speed_input(void)
 \end{lstlisting}
 
@@ -1316,7 +1315,7 @@ All controls (except for the potentionmeters) go through a debouncing process in
 
 \subsection*{Globals}
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 154 - 162
 	enum Controls {
     MOVE_LEFT = 0,
     MOVE_RIGHT = 1,
@@ -1329,13 +1328,13 @@ All controls (except for the potentionmeters) go through a debouncing process in
 \end{lstlisting}
 The different control states that are needed to be kept track of.
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 85 - 86
 	uint8_t controls_states[7];
 	uint8_t prev_controls_states[7];
 \end{lstlisting}
 Each contains the current state of a control input. Ie. \emph{controls\_states[MOVE\_LEFT]} will return 1 or 0 depending on whether the move left command (in this case joystick left - SW1) is pressed. The previous states are also save so that functionality of only accepting input on the rising or falling edge. 
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 89
 	uint8_t controls_history[7] = {0};
 \end{lstlisting}
 Holds the readings history of each input associated with each control. 
@@ -1343,7 +1342,7 @@ Holds the readings history of each input associated with each control.
 
 \subsection*{Functions}
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 1531 - 1607
 	ISR(TIMER0_OVF_vect)
 \end{lstlisting}
 Timer0 is used for the debouncing of the inputs. In this Interrupt Service Routine, the current values of each pin associated with each control will be read and added to their respective histories. If more than 6 straight readings are found, the current state of that control is matched to the reading.
@@ -1360,7 +1359,7 @@ The sprites must be drawn after \emph{show\_screen()} is called. This ensures th
 
 \subsection*{Functions}
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 458 - 489
 	void sprite_draw_direct(Sprite sprite)
 \end{lstlisting}
 Draws the sprite directly to the LCD, bypassing the buffer. It calculates what bank and range of x-coordinates in the LCD that we want to draw to and will proceed to set the LCD pointer to the first coordinate that the sprite appears (making this function pretty fast) . Then it will trawl accross the byte that spans the bank at each x-coordinate and set the locations that contain a 1 in the bitmap to 1 in the byte. Afterwards, the byte is sent to the LCD through LCD\_DATA.
@@ -1379,7 +1378,7 @@ This program currently uses two timers - Timer0 and Timer1. Timer 0 is used prim
 \end{lstlisting}
 How many times per second the ISR associated with Timer1 is called.
 \begin{lstlisting}[style=CStyle]
-	// Line 
+	// Line 103 and 166
 	uint16_t game_timer_counter;	
 	uint16_t loop_counter;
 \end{lstlisting}
@@ -1388,22 +1387,22 @@ Incremented every time Timer0 overflows. They are used to count the time since t
 
 \subsection*{Functions}
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 1531 - 1607
 	ISR(TIMER0_OVF_vect)
 \end{lstlisting}
 Called every time Timer0 overflows. It is used to increment the time counters as well as to debounce the switches.
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 1609 - 1614
 	ISR(TIMER1_COMPA_vect)
 \end{lstlisting}
 Called 60 times per second (TIMER1\_FREQ/60). Used to incremet \emph{speed\_counter} (see \emph{Acceleration and Speed} in order to control sroll speed of the game.
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 347 - 350
 	double elapsed_time(uint16_t timer_counter)
 \end{lstlisting}
 Calculates the elapsed time in seconds since the time counter passed to this function started running.
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 1470 - 1502
 	void teensy_setup(void))
 \end{lstlisting}
 Sets up Timer0 and Timer1.
@@ -1411,14 +1410,14 @@ Sets up Timer0 and Timer1.
 
 \subsection*{Register Values}
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 1485 - 1487
 	TCCR0A = 0x00;
    	TCCR0B = 1<<CS02;
    	TIMSK0 = 1<<TOIE0; 
 \end{lstlisting}
 Set prescaler to 256 and allows interrupts on overflow.
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 1490 - 1492
 	TCCR1B = 0x0C;	        
 	TIMSK1 = 0x02;           
 	OCR1A = TIMER1_FREQ/60;
@@ -1435,7 +1434,7 @@ In order to conserve RAM, the sprite arrays are stored in program memory with th
 
 \subsection*{Globals}
 \begin{lstlisting}[style=CStyle]
-	// Lines 
+	// Lines 169 - 177
 	uint8_t car_image[] PROGMEM= {
     0b01100000,
     0b11110000,
@@ -1449,12 +1448,12 @@ An exmaple of how a sprite array is stored in program memory.
 
 \subsection*{Functions}
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 365 - 377
 	uint8_t* get_image_from_pgm(Sprite sprite)
 \end{lstlisting}
 Since the sprite array is now stored in the device's memory instead of RAM, this functions utilizes a PGM micro to read the pointer to the device's memory. An example of this macro can be seen below.
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Line 370
 	img[i] = pgm_read_byte(&(sprite.bitmap[i]));
 \end{lstlisting}
 
@@ -1475,39 +1474,58 @@ A server program has been developed that allows it to act as a companion to the 
     DEBUG = 3
 };
 \end{lstlisting}
-The different commands that can be sent alongside 
+The different commands that can be sent alongside a message to the server so it knows how to process that data.
+\newline
+
 \subsection*{Functions - Teensy}
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 1458 - 1465
 	void usb_send_message(enum USBCommand command, int line_num ,char * buffer, int buffer_size, const char * format, ...)
 \end{lstlisting}
 A modified version of \emph{draw\_formatted()}, it will send a string to the server for processing. The command and line numbers are sent beforehand by using \emph{usb\_serial\_putchar()}.
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 1470 - 1502
 	void teensy_setup(void)
 \end{lstlisting}
 Calls \emph{usb\_init()} and waits until communications are established. 
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 1421 - 1446
 	void game_state_save(void)
 \end{lstlisting}
 It will send to the server all game defining variables in order for them to be saved. Each variable will be separated by a newline character.
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 1451 - 1453
 	void game_state_load(void)
 \end{lstlisting}
 
 \subsection*{Functions - Server}
 \begin{lstlisting}[style=CStyle]
-	// Lines
+	// Lines 37 - 56 (server.c)
 	void process(void)
 \end{lstlisting}
 Checks the usb\_serial if any new communication has been received from the Teensy. It'll use \emph{fgetc} twice in order to get a code and the number of lines sent. Depending on the code, it will call the save() (1), load() (2) or debug() (3) function.
+\begin{lstlisting}[style=CStyle]
+	// Lines 62 - 93 (server.c)
+	void save(void)
+\end{lstlisting}
+It will decode the data sent so that the variables can be stored in the save file.
+\begin{lstlisting}[style=CStyle]
+	// Lines 58 - 60 (server.c)
+	void decode(char* data, int index)
+\end{lstlisting}
+Will read the lines of data sent and depending on the index, assign one of the game variable the value decoded.
+\begin{lstlisting}[style=CStyle]
+	// Lines 95 - 105 (server.c)
+	void debug(void)
+\end{lstlisting}
+Will display the values of each line in the message to the terminal.
 \clearpage
 
 %----------------------------------------------------------------------------------------
 %	CONCLUSION
 %----------------------------------------------------------------------------------------
 \section{Conclusion}
-
+The game \emph{Zombie Race} was implemented in accordance with Part A and B of the brief. The majority of the part C features were implemented but I ran out of time to complete pixel collisions and the loading part of the USB communications.
+\newline
+Improvements consist of finishing Part C as well as more varieties of obstacles. As the LCD allows drawing of pixels, maybe some rudimentary animations (such as Formula sparks) could be implemented.
 \end{document}
