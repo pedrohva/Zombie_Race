@@ -166,7 +166,7 @@ const double loop_freq = 60.0;
 uint16_t loop_counter;
 
 // Bitmaps
-uint8_t car_image[] = {
+uint8_t car_image[] PROGMEM= {
     0b01100000,
     0b11110000,
     0b01100000,
@@ -231,6 +231,7 @@ int fuel_station_height = 8;
 // Helper functions
 double elapsed_time(uint16_t timer_counter);
 bool in_bounds(double x, double y);
+uint8_t* get_image_from_pgm(Sprite sprite);
 
 // Game loop functions
 void update(void);
@@ -358,6 +359,20 @@ bool in_bounds(double x, double y) {
     }
 
     return true;
+}
+
+uint8_t* get_image_from_pgm(Sprite sprite) {
+    uint8_t img[sprite.height];
+    uint8_t* tmp;
+
+    for(int i=0; i < sprite.height; i++) {
+        img[i] = pgm_read_byte(&(sprite.bitmap[i]));
+    }
+    
+    tmp = player.bitmap;
+    player.bitmap = img;
+
+    return tmp;
 }
 
 /**
@@ -517,8 +532,12 @@ void game_screen_update(void) {
  **/
 void game_screen_draw(void) {
     dashboard_draw();
+
+    uint8_t* tmp = get_image_from_pgm(player);
+
     // Draw the player
     sprite_draw(&player);
+    player.bitmap = tmp;
 
     // Draw the paused screen
     if(game_paused) {
@@ -569,12 +588,16 @@ void game_screen_draw(void) {
     } else {
         // Draw the terrain
         for(int i=0; i<NUM_TERRAIN; i++) {
+            //temp = get_image_from_pgm(terrain[i]);
             sprite_draw(&terrain[i]);
+            //terrain[i].bitmap = temp;
         }
 
         // Draw the hazards
         for(int i=0; i<NUM_HAZARD; i++) {
+            //temp = get_image_from_pgm(hazard[i]);
             sprite_draw(&hazard[i]);
+            //hazard[i].bitmap = temp;
         }
         
         // Draw the road
@@ -583,7 +606,9 @@ void game_screen_draw(void) {
             draw_pixel(road[y]+road_width, y, FG_COLOUR);
         }
         
+        //uint8_t* temp = get_image_from_pgm(fuel_station);
         sprite_draw(&fuel_station);
+        //fuel_station.bitmap = temp;
     }
 }
 
@@ -641,14 +666,14 @@ void game_screen_step(void) {
     }
 
     // Check if the car has collided with an obstacle
-    /*if(check_collision(player)) {
+    if(check_collision(player)) {
         // Check if the car has collided with a fuel station
         if(check_sprite_collided(player,fuel_station)) {
             change_screen(GAMEOVER_SCREEN);
         } else {
             handle_collision();
         }
-    }*/
+    }
 
     // Step through our objects
     terrain_step();

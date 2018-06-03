@@ -1411,6 +1411,47 @@ Enable CTC mode with a prescaler of 1024, allows interrups when the timer value 
 \clearpage
 
 %----------------------------------------------------------------------------------------
+%	PROGRAM MEMORY
+%----------------------------------------------------------------------------------------
+\section{Program Memory}
+In order to conserve RAM, the sprite arrays are stored in program memory with the use of the PROGMEM keyword. 
+
+\subsection*{Globals}
+\begin{lstlisting}[style=CStyle]
+	// Lines 
+	uint8_t car_image[] PROGMEM= {
+    0b01100000,
+    0b11110000,
+    0b01100000,
+    0b01100000,
+    0b11110000,
+};
+\end{lstlisting}
+An exmaple of how a sprite array is stored in program memory.
+\newline
+
+\subsection*{Functions}
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	uint8_t* get_image_from_pgm(Sprite sprite)
+\end{lstlisting}
+Since the sprite array is now stored in the device's memory instead of RAM, this functions utilizes a PGM micro to read the pointer to the device's memory. An example of this macro can be seen below.
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	img[i] = pgm_read_byte(&(sprite.bitmap[i]));
+\end{lstlisting}
+
+\clearpage
+
+%----------------------------------------------------------------------------------------
+%	BIDIRECTIONAL USB COMMUNICATION	
+%----------------------------------------------------------------------------------------
+\section{Bidirectional USB communication}
+
+
+\clearpage
+
+%----------------------------------------------------------------------------------------
 %	CONCLUSION
 %----------------------------------------------------------------------------------------
 \section{Conclusion}
