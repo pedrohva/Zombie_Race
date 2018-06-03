@@ -1353,7 +1353,61 @@ Timer0 is used for the debouncing of the inputs. In this Interrupt Service Routi
 %	TIMERS AND VOLATILE DATA
 %----------------------------------------------------------------------------------------
 \section{Timers and volatile data}
-This program currently uses 
+This program currently uses two timers - Timer0 and Timer1. Timer 0 is used primary for debouncing of switches. However, it is also used as the clock of the program so that the speed of the main loop can be controlled and to be able to get the time elapsed since a game began. Timer1 is used to control the scroll rate of the game so that every obstacle's step functions are called at the same time. This ensures they remain in sync. 
+
+\subsection*{Globals}
+\begin{lstlisting}[style=CStyle]
+	// Line 29
+	#define TIMER1_FREQ         7812	
+\end{lstlisting}
+How many times per second the ISR associated with Timer1 is called.
+\begin{lstlisting}[style=CStyle]
+	// Line 
+	uint16_t game_timer_counter;	
+	uint16_t loop_counter;
+\end{lstlisting}
+Incremented every time Timer0 overflows. They are used to count the time since the program started (loop\_counter) or since a game started (game\_timer\_counter).
+\newline
+
+\subsection*{Functions}
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	ISR(TIMER0_OVF_vect)
+\end{lstlisting}
+Called every time Timer0 overflows. It is used to increment the time counters as well as to debounce the switches.
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	ISR(TIMER1_COMPA_vect)
+\end{lstlisting}
+Called 60 times per second (TIMER1\_FREQ/60). Used to incremet \emph{speed\_counter} (see \emph{Acceleration and Speed} in order to control sroll speed of the game.
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	double elapsed_time(uint16_t timer_counter)
+\end{lstlisting}
+Calculates the elapsed time in seconds since the time counter passed to this function started running.
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	void teensy_setup(void))
+\end{lstlisting}
+Sets up Timer0 and Timer1.
+\newline
+
+\subsection*{Register Values}
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	TCCR0A = 0x00;
+   	TCCR0B = 1<<CS02;
+   	TIMSK0 = 1<<TOIE0; 
+\end{lstlisting}
+Set prescaler to 256 and allows interrupts on overflow.
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	TCCR1B = 0x0C;	        
+	TIMSK1 = 0x02;           
+	OCR1A = TIMER1_FREQ/60;
+\end{lstlisting}
+Enable CTC mode with a prescaler of 1024, allows interrups when the timer value matches OCR1A. This ensures ISR(TIMER1\_COMPA\_vect) is called about 60 times per second.
+
 \clearpage
 
 %----------------------------------------------------------------------------------------
