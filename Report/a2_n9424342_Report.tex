@@ -877,7 +877,7 @@ Represents the units of distance travelled by the car since the game started.
 	// Line 
 	uint8_t finish_line;
 \end{lstlisting}
-The distance that the player has to complete before they win the game. Setup in \emph{game\_screen\_setup(void)}. Currently hardcoded to 150 (no reason to make another global).
+The distance that the player has to complete before they win the game. Setup in \emph{game\_screen\_setup(void)}. Currently hardcoded to 250 (no reason to make another global).
 \newline
 
 \subsection*{Functions}
@@ -905,7 +905,172 @@ Timestep	& Distance	& Expected distance	& Speed	& Test result		\\ \hline
 \end{tabular}
 \end{center}
 
+\clearpage
 
+%----------------------------------------------------------------------------------------
+%	COLLISION
+%----------------------------------------------------------------------------------------
+\section{Collision}
+Collision uses simple bounding box detection - this functionality is expanded in the section \emph{Pixel-level collision detection}. The car is reset and the condition reduced if the car hits an obstacle head on. The car's horizontal movement is stopped if it tries to move into an obstacle. 
+
+\subsection*{Globals}
+\begin{lstlisting}[style=CStyle]
+	// Line 
+	uint8_t condition;
+\end{lstlisting}
+The only global added by this section. Collision detection makes use mostly of globals already implemented when the scenery is created. 
+\newline
+
+\subsection*{Functions}
+\begin{lstlisting}[style=CStyle]
+	// Lines 
+	bool check_collision(Sprite sprite);
+\end{lstlisting}
+Iterates through every obstacle in the game and checks if the sprite passed to this function collides with any of therm.
+\begin{lstlisting}[style=CStyle]
+	// Lines 
+	bool check_sprite_collided(Sprite sprite1, Sprite sprite2)
+\end{lstlisting}
+Checks if the two sprites passed to this function collide with each other.
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	void game_screen_step(void)
+\end{lstlisting}
+Will check if the player has collided with any object every time the car moves. Will also check if the car has collided with a fuel depot and throw the game over dialogue if it has.
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	void handle_collision(void)
+\end{lstlisting}
+When it's found that the player has collided with an object that is not the fuel depot, this function will reset the location of the player and clear any hazards on the way while also reducing the car's condition and changing to the game over screen if it reaches 0.
+\begin{lstlisting}[style=CStyle]
+	// Lines 
+	void player_car_move(int dx) 
+\end{lstlisting}
+Won't allow the player to move if it means colliding sideways with an obstacle
+\newline
+
+\subsection*{Testing}
+
+\clearpage
+
+%----------------------------------------------------------------------------------------
+%	GAME OVER DIALOGUE
+%----------------------------------------------------------------------------------------
+\section{Game Over Dialogue}
+The game over dialogue is given when the player has either won the game by travelling far enough or lost by crashing into an obstacle or running out of fuel. In this screen, the user can choose to go back to the splash screen with the left button (SW2), start a game immediately with the right button (SW3) or load a game from the server with the center joystick buton (SW1).
+\newline
+Due to the program being a state machine, the game can be easily restarted by changing to the desired state.
+
+\subsection*{Globals}
+\begin{lstlisting}[style=CStyle]
+	// Line 
+	bool game_over_loss;
+\end{lstlisting}
+Represents if the game was over either through a loss (true) or win (false).
+\newline
+
+\subsection*{Functions}
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	void gameover_screen_update(void)
+\end{lstlisting}
+Will poll  for input to check if state should be changed to splash, game or load.
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	void gameover_screen_draw(void)
+\end{lstlisting}
+Will draw a prompt depending if the user has won or lost. Will also print commands that the user can press in order to change the state. 
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	void change_screen(int new_screen)
+\end{lstlisting}
+Changes the current state of the game to one define in the \emph{GameScreens} enum. If the state is changing to the \emph{GAME\_SCREEN}, will also call a setup function first in onder to reset all of the game variabels. 
+\newline
+
+\subsection*{Testing}
+
+\clearpage
+
+%----------------------------------------------------------------------------------------
+%	CURVED ROAD
+%----------------------------------------------------------------------------------------
+\section{Curved Road}
+The road in \emph{Zombie Race} takes a smoothly varying but unpredictable path. The road is built in sections that determine the x-positions of new road pieces that spawn at the top of  the screen. Each section is randomly assigned a smoothness factor, a direction and a length. This makes the road hard to predict, the smoothness factor (\emph{ROAD\_CURVE}) affects the sharpness in the current curve applied to the road. Once a section has reached its assigned length, a new section is created. 
+
+\subsection*{Globals}
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	#define ROAD_LEFT           0
+	#define ROAD_RIGHT          1
+	#define ROAD_STRAIGHT       2
+\end{lstlisting}
+Determines the direction of movement for the current section of road being created.
+\begin{lstlisting}[style=CStyle]
+	// Line 
+	#define ROAD_CURVE_MIN      1
+	#define ROAD_CURVE_MAX      3
+\end{lstlisting}
+How smooth the road turns. A larger value means the road takes longer to change it's x value. 
+\begin{lstlisting}[style=CStyle]
+	// Line 
+	#define ROAD_SECTION_MIN    15
+	#define ROAD_SECTION_MAX    35
+\end{lstlisting}
+How many steps a road can take before the direction of movement is change (the movement can change to be in the same direction). 
+\begin{lstlisting}[style=CStyle]
+	// Line 
+	uint8_t road[LCD_Y]; 
+\end{lstlisting}
+The lx coordinates of the left side of the road packed into an array the size of the height of the LCD. 
+\begin{lstlisting}[style=CStyle]
+	// Line 
+	uint8_t road_width = 16; 
+\end{lstlisting}
+The width of the road. This is used in conjunction with the road array in order to draw the right side of the road or detection if an object is offroad.
+\begin{lstlisting}[style=CStyle]
+	// Line 
+	uint8_t road_counter;
+\end{lstlisting}
+Counts how many steps the road has taken. After it passes the value of \emph{road\_curve}, the road will move one pixel in the current direction it's travelling.
+\begin{lstlisting}[style=CStyle]
+	// Line 
+	uint8_t road_curve;
+\end{lstlisting}
+The current curve value of the road. Will be between the limits (inclusive) set by the \emph{ROAD\_CURVE} constants.
+\begin{lstlisting}[style=CStyle]
+	// Line 
+	uint8_t road_direction;
+\end{lstlisting}
+The current direction of travel of the road.
+\begin{lstlisting}[style=CStyle]
+	// Line 
+	uint8_t road_section_length;
+\end{lstlisting}
+How many steps the road has taken with the current section. It is given a value set by the limits \emph{ROAD\_SECTION} when a new section is created and is decremented every time the road steps. Once it reaches zero, a new road section is created. 
+\newpage
+
+\subsection*{Functions}
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	void road_step(void)
+\end{lstlisting}
+Called every time the game steps. Will shift the \emph{road} array to the right one place, effectively stepping the road down by one pixel. Depending on the properties of the current road section, it will then decide where to place the new x-coordinate in \emph{road[0]}.
+\newline
+
+\subsection*{Testing}
+
+\clearpage
+
+%----------------------------------------------------------------------------------------
+%	Accelerator and Break
+%----------------------------------------------------------------------------------------
+\section{Accelerator and Break}
+
+\subsection*{Functions}
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	void player_speed_input(void)
+\end{lstlisting}
 \clearpage
 
 %----------------------------------------------------------------------------------------

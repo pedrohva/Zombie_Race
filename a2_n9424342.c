@@ -50,7 +50,7 @@
 #define ROAD_RIGHT          1
 #define ROAD_STRAIGHT       2
 // The minimum and maximum curve allowed for the road (see road_curve)
-#define ROAD_CURVE_MIN      2
+#define ROAD_CURVE_MIN      1
 #define ROAD_CURVE_MAX      3
 // How many steps the road can take before it has to change directions
 #define ROAD_SECTION_MIN    15
@@ -114,6 +114,7 @@ uint8_t distance;
 uint8_t finish_line;
 uint8_t distance_counter;
 double speed_counter;
+bool game_over_loss;
 
 // Game time control
 uint8_t step = 0;
@@ -128,7 +129,6 @@ Sprite player;
 // Road
 uint8_t road[LCD_Y];            // The x-coordinates of each road piece
 uint8_t road_width = 16;   
-uint8_t road_y;                  // Used to make sure the road stays synced with the other objects in the playing field
 uint8_t road_counter;           // Counts how many steps the road has taken before being moved horizontally
 uint8_t road_curve;             // This decides how many times the road must move before it is moved horizontally
 uint8_t road_direction;
@@ -463,7 +463,9 @@ void change_screen(int new_screen) {
  **/
 void start_screen_update(void) {
     // Check if a button has been pressed and proceed to the game screen if it has
-    if(button_left_state || button_right_state) {
+    int button_left_edge = (prev_button_left_state == 0) && (button_left_state != 0);
+    int button_right_edge = (prev_button_right_state == 0) && (button_right_state != 0);
+    if(button_left_edge || button_right_edge) {
         change_screen(GAME_SCREEN);
     }
 
@@ -550,7 +552,7 @@ void game_screen_draw(void) {
         //usb_send_message(DEBUG, 3, buffer, 80, "Time step: %.3f\nFuel: %.0f\nSpeed: %.0f\n%d\n", time_paused, fuel, speed, 0);
 
         // Test: Distance travelled
-        usb_send_message(DEBUG, 3, buffer, 80, "Time step: %.3f\nDistance: %d\nSpeed: %.0f\n%d\n", time_paused, distance, speed, 0);
+        //usb_send_message(DEBUG, 3, buffer, 80, "Time step: %.3f\nDistance: %d\nSpeed: %.0f\n%d\n", time_paused, distance, speed, 0);
     } else {
         // Draw the terrain
         for(int i=0; i<NUM_TERRAIN; i++) {
@@ -647,6 +649,7 @@ void game_screen_step(void) {
     // Check if the player has won
     if(finish_line < 1) {
         change_screen(GAMEOVER_SCREEN);
+        game_over_loss = false;
     }
 
     // Testing: Fuel
@@ -668,7 +671,8 @@ void game_screen_setup(void) {
     game_paused = 0;
     distance_counter = 0;
     speed_counter = 0;
-    finish_line = 150;
+    finish_line = 250;
+    game_over_loss = true;
     
     // Setup the initial car information
     condition = 100;
@@ -683,7 +687,6 @@ void game_screen_setup(void) {
     TCNT1 = 0x00;
 
     // Setup the road
-    road_y = 0.0;
     int road_x = ((LCD_X-DASHBOARD_BORDER_X)/2) - (road_width/2) + DASHBOARD_BORDER_X - 1;
     for(int y=0; y<LCD_Y; y++) {
         road[y] = road_x;
@@ -711,12 +714,12 @@ void game_screen_setup(void) {
  **/
 void gameover_screen_update(void) {
     // If the left button is pressed, go to title screen
-    if(button_left_state) {
+    if((prev_button_left_state == 0) && (button_left_state != 0)) {
         change_screen(START_SCREEN);
     }
 
     // If the right button is pressed, start a new game straight away
-    if(button_right_state) {
+    if((prev_button_right_state == 0) && (button_right_state != 0)) {
         change_screen(GAME_SCREEN);
     }
 
@@ -730,10 +733,16 @@ void gameover_screen_update(void) {
  * Draw the prompts for the player to decide what to prooced to
  **/
 void gameover_screen_draw(void) {
-    draw_string(18, 2, "Game Over", FG_COLOUR);
-    draw_string(1, LCD_Y-30, "SW2 for Splash", FG_COLOUR);
-    draw_string(1, LCD_Y-20, "SW3 for Game", FG_COLOUR);
-    draw_string(1, LCD_Y-10, "SWA for Load", FG_COLOUR);
+    if(game_over_loss) {
+        draw_string(18, 2, "Game Over", FG_COLOUR);
+    }else {
+        draw_string(18, 2, "You won", FG_COLOUR);
+    }
+    char buf[30];
+    draw_formatted(1, 10, buf, 30, "T:%.3f,D: %d", elapsed_time(game_timer_counter), distance);
+    draw_string(1, LCD_Y-27, "SW2 for Splash", FG_COLOUR);
+    draw_string(1, LCD_Y-17, "SW3 for Game", FG_COLOUR);
+    draw_string(1, LCD_Y-7, "SWA for Load", FG_COLOUR);
 }
 
 /**
@@ -771,6 +780,11 @@ void player_car_move(int dx) {
     }
 
     player.x += dx;
+
+    // Check if the car will collide sideways with any object
+    if(check_collision(player)) {
+        player.x -= dx;
+    }
 }
 
 /**
