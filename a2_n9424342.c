@@ -82,27 +82,11 @@
 #define HAZARD_SPAWN_CHANCE 15
 
 // Controls - Used to check if any button/joystick has been activated (don't check PINs)
-uint8_t button_left_state;
-uint8_t prev_button_left_state = 0;
-uint8_t button_right_state;
-uint8_t prev_button_right_state = 0;
-uint8_t stick_centre_state;
-uint8_t prev_stick_centre_state = 0;
-uint8_t stick_left_state;
-uint8_t stick_right_state;
-uint8_t stick_up_state;
-uint8_t prev_stick_up_state;
-uint8_t stick_down_state;
-uint8_t prev_stick_down_state;
+uint8_t controls_states[7];
+uint8_t prev_controls_states[7];
 
 // Debounce
-uint8_t button_left_history = 0;
-uint8_t button_right_history = 0;
-uint8_t stick_centre_history = 0;
-uint8_t stick_left_history = 0;
-uint8_t stick_right_history = 0;
-uint8_t stick_up_history = 0;
-uint8_t stick_down_history = 0;
+uint8_t controls_history[7] = {0};
 
 // Game information
 uint8_t condition;
@@ -162,6 +146,19 @@ enum USBCommand {
     SAVE = 1,
     LOAD = 2,
     DEBUG = 3
+};
+
+/**
+ * The controls for the game
+ **/
+enum Controls {
+    MOVE_LEFT = 0,
+    MOVE_RIGHT = 1,
+    ACCEL = 2,
+    DECEL = 3,
+    PAUSE = 4,
+    SAVE_GAME = 5,
+    LOAD_GAME = 6
 };
 
 // Game loop controls 
@@ -390,11 +387,11 @@ void update(void) {
     LCD_CMD(lcd_set_function, lcd_instr_basic);
 
     // Update all control states
-    prev_button_left_state = button_left_state;
-    prev_button_right_state = button_right_state;
-    prev_stick_centre_state = stick_centre_state;
-    prev_stick_up_state = stick_up_state;
-    prev_stick_down_state = stick_down_state;
+    prev_controls_states[DECEL] = controls_states[DECEL];
+    prev_controls_states[ACCEL] = controls_states[ACCEL];
+    prev_controls_states[PAUSE] = controls_states[PAUSE];
+    prev_controls_states[SAVE_GAME] = controls_states[SAVE_GAME];
+    prev_controls_states[LOAD_GAME] = controls_states[LOAD_GAME];
 }
 
 /**
@@ -451,7 +448,7 @@ void change_screen(int new_screen) {
 
     // Test: Splash screen
     //char buf[100];
-    //usb_send_message(DEBUG, 4, buf, 100, "Timestep: %.3f\nSW2: %d\nSW3: %d\nScreen: %d\n%d\n", elapsed_time(game_timer_counter), button_left_state, button_right_state, game_screen, 0);
+    //usb_send_message(DEBUG, 4, buf, 100, "Timestep: %.3f\nSW2: %d\nSW3: %d\nScreen: %d\n%d\n", elapsed_time(game_timer_counter), controls_states[DECEL], controls_states[ACCEL], game_screen, 0);
 }
 
 /**
@@ -459,15 +456,15 @@ void change_screen(int new_screen) {
  **/
 void start_screen_update(void) {
     // Check if a button has been pressed and proceed to the game screen if it has
-    int button_left_edge = (prev_button_left_state == 0) && (button_left_state != 0);
-    int button_right_edge = (prev_button_right_state == 0) && (button_right_state != 0);
+    int button_left_edge = (prev_controls_states[DECEL] == 0) && (controls_states[DECEL] != 0);
+    int button_right_edge = (prev_controls_states[ACCEL] == 0) && (controls_states[ACCEL] != 0);
     if(button_left_edge || button_right_edge) {
         change_screen(GAME_SCREEN);
     }
 
     // Test: Splash screen
     //char buf[100];
-    //usb_send_message(DEBUG, 4, buf, 100, "Timestep: %.3f\nSW2: %d\nSW3: %d\nScreen: %d\n%d\n", elapsed_time(game_timer_counter), button_left_state, button_right_state, game_screen, 0);
+    //usb_send_message(DEBUG, 4, buf, 100, "Timestep: %.3f\nSW2: %d\nSW3: %d\nScreen: %d\n%d\n", elapsed_time(game_timer_counter), controls_states[DECEL], controls_states[ACCEL], game_screen, 0);
 }
 
 /**
@@ -484,7 +481,7 @@ void start_screen_draw(void) {
  **/
 void game_screen_update(void) {
     // Deals with input that decides if should pause the game or not (only toggle on press not hold)
-    if(((prev_stick_centre_state == 0) && (stick_centre_state != 0))) {
+    if(((prev_controls_states[PAUSE] == 0) && (controls_states[PAUSE] != 0))) {
         game_paused ^= 1;
         if(game_paused) {
             time_paused = elapsed_time(game_timer_counter);
@@ -503,9 +500,9 @@ void game_screen_update(void) {
         refuel();
     } else {
         // Checks if the user wants to load or save the game
-        if(((prev_stick_up_state == 0) && (stick_up_state != 0))) {
+        if(((prev_controls_states[SAVE_GAME] == 0) && (controls_states[SAVE_GAME] != 0))) {
             game_state_save();
-        }else if(((prev_stick_down_state == 0) && (stick_down_state != 0))) {
+        }else if(((prev_controls_states[LOAD_GAME] != 0))) {
             game_state_load();
         }
 
@@ -535,10 +532,10 @@ void game_screen_draw(void) {
         //usb_send_message(DEBUG, 2, buffer, 80, "Time step: %.3f\nDistance: %d\n%d\n", time_paused, distance, 0);
 
         // Test: Horizontal Movement
-        //usb_send_message(DEBUG, 5, buffer, 80, "Time step: %.3f\nPlayer x: %.0f\nLeft: %d\nRight: %d\nSpeed: %.0f\n%d\n", time_paused, player.x, stick_left_state, stick_right_state, speed, 0);
+        //usb_send_message(DEBUG, 5, buffer, 80, "Time step: %.3f\nPlayer x: %.0f\nLeft: %d\nRight: %d\nSpeed: %.0f\n%d\n", time_paused, player.x, controls_states[MOVE_LEFT], controls_states[MOVE_RIGHT], speed, 0);
 
         // Test: Acceleration and Speed
-        //usb_send_message(DEBUG, 5, buffer, 80, "Time step: %.3f\nOffroad: %d\nLeft: %d\nRight: %d\nSpeed: %.0f\n%d\n", time_paused, offroad(player), button_left_state, button_right_state, speed, 0);
+        //usb_send_message(DEBUG, 5, buffer, 80, "Time step: %.3f\nOffroad: %d\nLeft: %d\nRight: %d\nSpeed: %.0f\n%d\n", time_paused, offroad(player), controls_states[DECEL], controls_states[ACCEL], speed, 0);
 
         // Test: Scenery and Obstacles
         //usb_send_message(DEBUG, 3, buffer, 80, "Time step: %.3f\nTerrain y: %.0f\nSpeed: %.0f\n%d\n", time_paused, terrain[1].y, speed, 0);
@@ -568,7 +565,7 @@ void game_screen_draw(void) {
         //usb_send_message(DEBUG, 3, buffer, 80, "Time step: %.3f\nCar x: %.0f\nSpeed: %.0f\n%d\n", time_paused, player.x, speed, 0);
 
         // Test: Fuel level increases gradually
-        usb_send_message(DEBUG, 2, buffer, 80, "Time step: %.3f\nFuel: %.0f\n%d\n", time_paused, fuel, 0);
+        //usb_send_message(DEBUG, 2, buffer, 80, "Time step: %.3f\nFuel: %.0f\n%d\n", time_paused, fuel, 0);
     } else {
         // Draw the terrain
         for(int i=0; i<NUM_TERRAIN; i++) {
@@ -627,9 +624,9 @@ void game_screen_step(void) {
     }
 
     // Deals with input that controls horizontal movement
-    if(stick_left_state) {
+    if(controls_states[MOVE_LEFT]) {
         player_car_move(-1);
-    } else if(stick_right_state) {
+    } else if(controls_states[MOVE_RIGHT]) {
         player_car_move(1);
     }
 
@@ -727,17 +724,17 @@ void game_screen_setup(void) {
  **/
 void gameover_screen_update(void) {
     // If the left button is pressed, go to title screen
-    if((prev_button_left_state == 0) && (button_left_state != 0)) {
+    if((prev_controls_states[DECEL] == 0) && (controls_states[DECEL] != 0)) {
         change_screen(START_SCREEN);
     }
 
     // If the right button is pressed, start a new game straight away
-    if((prev_button_right_state == 0) && (button_right_state != 0)) {
+    if((prev_controls_states[ACCEL] == 0) && (controls_states[ACCEL] != 0)) {
         change_screen(GAME_SCREEN);
     }
 
     // If the down button is pressed, load a new game from the server via USB
-    if(((prev_stick_down_state == 0) && (stick_down_state != 0))) {
+    if(((prev_controls_states[LOAD_GAME] == 0) && (controls_states[LOAD_GAME] != 0))) {
         game_state_load();
     }
 
@@ -821,10 +818,10 @@ void player_speed_input(void) {
     double rate = 0;
     // Handle acceleration
     // Accelerate or decelerate controls
-    if(button_left_state) {
+    if(controls_states[DECEL]) {
         // Calculate rate to decrease speed in order to go from 10 to 0 in 2 seconds
         rate = -10.0/40.0;
-    }else if(button_right_state) {
+    }else if(controls_states[ACCEL]) {
         // Calculate rate to increase speed in order to go from 1 to 3 in 5 seconds
         if(offroad(player)) {
             rate = 3.0/120.0;
@@ -857,6 +854,10 @@ void player_speed_input(void) {
     }else if(speed < 0) {
         speed = 0;
     }
+
+    // Test: ADC Pot0
+    //char buffer[80];
+    //usb_send_message(DEBUG, 3, buffer, 80, "Time step: %.3f\nPot0: %d\nSpeed Limit: %d\n%d\n", time_paused, pot0, speed_limit, 0);
 }
 
 /**
@@ -1193,7 +1194,7 @@ void check_refuel(void) {
 	if((player.x + player.width == fuel_station.x) || (fuel_station.x + fuel_station.width == player.x)) {
         // Check if the player is inside the bounds of the fuel station
         if((player.y >= fuel_station.y) && (player.y + player.height <= fuel_station.y + fuel_station.height)) {
-            if((speed < 3) && button_left_state) {
+            if((speed < 3) && controls_states[DECEL]) {
 			    refuelling = true;
 		        speed = 0;
 		    }
@@ -1207,7 +1208,7 @@ void check_refuel(void) {
 void refuel(void) {
 	if(refuelling) {
         // Cancel refuelling if the car starts moving again or brake is released
-		if(speed > 0 || !button_left_state) {
+		if(speed > 0 || !controls_states[DECEL]) {
 			refuelling = false;
 		} else {
             // Increment the fuel value with a rate that would go 0-100 in 3 seconds
@@ -1459,65 +1460,65 @@ ISR(TIMER0_OVF_vect) {
 
     // BUTTON_LEFT
     b = (PINF>>BUTTON_LEFT) & 0x01;
-    button_left_history = ((button_left_history << 1) & mask) | b;
-    if(button_left_history == 0) {
-        button_left_state = 0;
-    } else if(button_left_history == mask) {
-        button_left_state = 1;
+    controls_history[DECEL] = ((controls_history[DECEL] << 1) & mask) | b;
+    if(controls_history[DECEL] == 0) {
+        controls_states[DECEL] = 0;
+    } else if(controls_history[DECEL] == mask) {
+        controls_states[DECEL] = 1;
     }
 
     // BUTTON_RIGHT
     b = (PINF>>BUTTON_RIGHT) & 0x01;
-    button_right_history = ((button_right_history << 1) & mask) | b;
-    if(button_right_history == 0) {
-        button_right_state = 0;
-    } else if(button_right_history == mask) {
-        button_right_state = 1;
+    controls_history[ACCEL] = ((controls_history[ACCEL] << 1) & mask) | b;
+    if(controls_history[ACCEL] == 0) {
+        controls_states[ACCEL] = 0;
+    } else if(controls_history[ACCEL] == mask) {
+        controls_states[ACCEL] = 1;
     }
 
     // STICK_CENTRE
     b = (PINB>>STICK_CENTRE) & 0x01;
-    stick_centre_history = ((stick_centre_history << 1) & mask) | b;
-    if(stick_centre_history == 0) {
-        stick_centre_state = 0;
-    } else if(stick_centre_history == mask) {
-        stick_centre_state = 1;
+    controls_history[PAUSE] = ((controls_history[PAUSE] << 1) & mask) | b;
+    if(controls_history[PAUSE] == 0) {
+        controls_states[PAUSE] = 0;
+    } else if(controls_history[PAUSE] == mask) {
+        controls_states[PAUSE] = 1;
     }
 
     // STICK_LEFT
     b = (PINB>>STICK_LEFT) & 0x01;
-    stick_left_history = ((stick_left_history << 1) & mask) | b;
-    if(stick_left_history == 0) {
-        stick_left_state = 0;
-    } else if(stick_left_history == mask) {
-        stick_left_state = 1;
+    controls_history[MOVE_LEFT] = ((controls_history[MOVE_LEFT] << 1) & mask) | b;
+    if(controls_history[MOVE_LEFT] == 0) {
+         controls_states[MOVE_LEFT] = 0;
+    } else if(controls_history[MOVE_LEFT] == mask) {
+         controls_states[MOVE_LEFT] = 1;
     }
 
     // STICK_RIGHT
     b = (PIND>>STICK_RIGHT) & 0x01;
-    stick_right_history = ((stick_right_history << 1) & mask) | b;
-    if(stick_right_history == 0) {
-        stick_right_state = 0;
-    } else if(stick_right_history == mask) {
-        stick_right_state = 1;
+    controls_history[MOVE_RIGHT] = ((controls_history[MOVE_RIGHT] << 1) & mask) | b;
+    if(controls_history[MOVE_RIGHT] == 0) {
+         controls_states[MOVE_RIGHT] = 0;
+    } else if(controls_history[MOVE_RIGHT] == mask) {
+         controls_states[MOVE_RIGHT] = 1;
     }
     
     // STICK_UP
     b = (PIND>>STICK_UP) & 0x01;
-    stick_up_history = ((stick_up_history << 1) & mask) | b;
-    if(stick_up_history == 0) {
-        stick_up_state = 0;
-    } else if(stick_up_history == mask) {
-        stick_up_state = 1;
+    controls_history[SAVE_GAME] = ((controls_history[SAVE_GAME] << 1) & mask) | b;
+    if(controls_history[SAVE_GAME] == 0) {
+         controls_states[SAVE_GAME] = 0;
+    } else if(controls_history[SAVE_GAME] == mask) {
+         controls_states[SAVE_GAME] = 1;
     }
 
     // STICK_DOWN
     b = (PIND>>STICK_DOWN) & 0x01;
-    stick_down_history = ((stick_down_history << 1) & mask) | b;
-    if(stick_down_history == 0) {
-        stick_down_state = 0;
-    } else if(stick_down_history == mask) {
-        stick_down_state = 1;
+    controls_history[LOAD_GAME] = ((controls_history[LOAD_GAME] << 1) & mask) | b;
+    if(controls_history[LOAD_GAME] == 0) {
+         controls_states[LOAD_GAME] = 0;
+    } else if(controls_history[LOAD_GAME] == mask) {
+         controls_states[LOAD_GAME] = 1;
     }
 }
 

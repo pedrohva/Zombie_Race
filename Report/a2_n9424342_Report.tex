@@ -343,6 +343,7 @@ Used to check if the car is currently refuelling. \emph{dashboard\_draw()} will 
 	#define DASHBOARD_BORDER_X  26
 \end{lstlisting}
 The right-most x coordinate of the dashboard. The border is drawn at this line
+\newline
 
 \subsection*{Functions}
 \begin{lstlisting}[style=CStyle]
@@ -350,6 +351,7 @@ The right-most x coordinate of the dashboard. The border is drawn at this line
 	void dashboard_draw(void);
 \end{lstlisting}
 Called in the draw function of the game screen. Will draw the line separating the dashboard from the rest of the game screen then will call the \emph{draw\_string()} and \emph{draw\_formatted()} functions in other to display the current game information. If the player is currently refuelling, will display the character 'R' at the bottom. 
+\newline
 
 \subsection*{Testing}
 Testing for this section is a mixture of server and visual analysis. The current values to be displayed on the dashboard are sent to the server and visual analysis of the Teensy's LCD screen will determine if the test has passed.
@@ -1145,7 +1147,7 @@ Called every iteration of the game loop. It will read the state of SW2 and SW3 a
 \newline
 
 \subsection*{Testing}
-\subsubsection{Test Plan: Braking - 10 to 0 in two seconds}
+\subsubsection*{Test Plan: Braking - 10 to 0 in two seconds}
 The left button (SW2) was held to brake the car and make sure it is slows down at the required rate. The time was then taken when the car is travelling at a speed of 10 and then taken again as soon as the car hits a speed of 0.
 \begin{center}
 \begin{tabular}{ c c c c c c }
@@ -1155,7 +1157,7 @@ Timestep	& Expected timestep	& Speed	& Test Pass	\\ \hline
 \end{tabular}
 \end{center}
 
-\subsubsection{Test Plan: Accelerating - 1 to 10/3 in five seconds}
+\subsubsection*{Test Plan: Accelerating - 1 to 10/3 in five seconds}
 The right button (SW3) was held to keep the car accelerating. A snapshot was taken when the car is at a speed of 0 and then again as soon as the car hits a speed of 10 or 3. The maximum speed will depend if the car is on the road or off the road.
 \begin{center}
 \begin{tabular}{ c c c c c c }
@@ -1167,7 +1169,7 @@ Timestep	& Expected timestep	& Speed	& Offroad	& Test result	\\ \hline
 \end{tabular}
 \end{center}
 
-\subsubsection{Test Plan: Idle - 10/3 to 1 in three seconds}
+\subsubsection*{Test Plan: Idle - 10/3 to 1 in three seconds}
 No buttons were pressed and the car was left to decelerate on it's own. First snapshop was teken when the car had a maximum speed (dependent if it was offroad or not), and then the second snapshot was taken as soon as the speed hit 1.
 \begin{center}
 \begin{tabular}{ c c c c c c }
@@ -1180,7 +1182,7 @@ Timestep	& Expected timestep	& Speed	& Offroad	& Test result	\\ \hline
 \end{center}
 \newpage
 
-\subsubsection{Test Plan: Idle - 0 to 1 in 2/3 seconds}
+\subsubsection*{Test Plan: Idle - 0 to 1 in 2/3 seconds}
 The brake was held at the start to make the speed equal to 0, a snapshot was then take. The brake was then released and no buttons were pressed. A second snapshot was then when the speed of the car hit 1. 
 \begin{center}
 \begin{tabular}{ c c c c c c }
@@ -1245,11 +1247,113 @@ Timestep	& Fuel		& Expected timestep	& Test result	\\ \hline
 21.557	& 10		& - 				& n/a 		\\
 22.961	& 63		& \verb|<|24.557 		& Pass	\\
 24.234	& 100		& 24.557 			& Pass 	\\ \hline
-
 \end{tabular}
 \end{center}
 
+\clearpage
 
+%----------------------------------------------------------------------------------------
+%	ADC
+%----------------------------------------------------------------------------------------
+\section{ADC}
+This program uses the ADC and the two potentionmeters to affect the game. By modifying Pot0, the maximum speed is limited to a value that is proportional from the distance of the potentionmeter from its central position. When the potentionmeter is at the central position, the maximum speed will have a value of 5. The higher the value of the potentionmeter, the higher the speed limit - however, the global limit of 3 on offroads will still be enforced.
+\newline
+Pot1 controls the contrast levels. This is mostly a helper function to allow different users to change the screen contrast to one they feel comfortable with.
+
+\subsection*{Globals}
+\begin{lstlisting}[style=CStyle]
+	// Line
+	#define LCD_MAX_CONTRAST    0x7F
+\end{lstlisting}
+Controls the maximum contrast that the potentionmeter can set.
+\newline
+
+\subsection*{Functions}
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	void adc_init(void)
+\end{lstlisting}
+Enables the ADC and sets the prescaler to the maximum value possible (128) as there's no need for a high frequency. 
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	uint16_t adc_read(uint8_t channel)
+\end{lstlisting}
+Set the voltage reference selection to be \(AV_{CC}\) with external capacitor on AREF pin. Select the analog input channel based on the \emph{channel} variable and also set the differential gain to 1. Will then begin conversion then return the digital value for the channel (channel 1 = Pot1 and 0 = Pot0).
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	void update(void)
+\end{lstlisting}
+
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	void player_speed_input(void)
+\end{lstlisting}
+
+\subsection*{Testing}
+This testing plan ensures that the maximum speed set is proportional to the distance of the potentiometer from its central position. It will also verify that the offroad speed limit is still enforced even if a maximum value is set on Pot0.
+\begin{center}
+\begin{tabular}{ c c c }
+Pot0	& Speed Limit	& Offroad	\\ \hline
+0	& 1			& 0		\\
+130	& 2			& 0		\\
+500 	& 5			& 0		\\
+800	& 8			& 0		\\
+1023	& 10			& 0		\\
+0	& 1			& 1		\\
+500	& 2			& 1		\\
+1023	& 3			& 1		\\ \hline
+\end{tabular}
+\end{center}
+
+\clearpage
+
+%----------------------------------------------------------------------------------------
+%	DEBOUNCE ALL SWITCHES
+%----------------------------------------------------------------------------------------
+\section{De-bounce all switches}
+All controls (except for the potentionmeters) go through a debouncing process in order to ensure that commands sent to the Teensy are as accurate as possible. 
+
+\subsection*{Globals}
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	enum Controls {
+    MOVE_LEFT = 0,
+    MOVE_RIGHT = 1,
+    ACCEL = 2,
+    DECEL = 3,
+    PAUSE = 4,
+    SAVE_GAME = 5,
+    LOAD_GAME = 6
+	};
+\end{lstlisting}
+The different control states that are needed to be kept track of.
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	uint8_t controls_states[7];
+	uint8_t prev_controls_states[7];
+\end{lstlisting}
+Each contains the current state of a control input. Ie. \emph{controls\_states[MOVE\_LEFT]} will return 1 or 0 depending on whether the move left command (in this case joystick left - SW1) is pressed. The previous states are also save so that functionality of only accepting input on the rising or falling edge. 
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	uint8_t controls_history[7] = {0};
+\end{lstlisting}
+Holds the readings history of each input associated with each control. 
+\newline
+
+\subsection*{Functions}
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	ISR(TIMER0_OVF_vect)
+\end{lstlisting}
+Timer0 is used for the debouncing of the inputs. In this Interrupt Service Routine, the current values of each pin associated with each control will be read and added to their respective histories. If more than 6 straight readings are found, the current state of that control is matched to the reading.
+
+\clearpage
+
+%----------------------------------------------------------------------------------------
+%	TIMERS AND VOLATILE DATA
+%----------------------------------------------------------------------------------------
+\section{Timers and volatile data}
+This program currently uses 
 \clearpage
 
 %----------------------------------------------------------------------------------------
