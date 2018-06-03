@@ -558,6 +558,11 @@ void game_screen_draw(void) {
         // Test: Collision Test plan 2 (change the object to either hazard, terrain or the fuel station)
         //usb_send_message(DEBUG, 6, buffer, 80, "Time step: %.3f\nCar x: %.0f\nCar x2: %.0f\nCar y: %.0f\nObject y: %.0f\nCondition: %d\n%d\n", time_paused, player.x, player.x+player.width, player.y, fuel_station.y, condition, 0);
 
+        // Test: Curved Road
+        //usb_send_message(DEBUG, 6, buffer, 80, "Time step: %.3f\nCar x: %.0f\nCar x2: %.0f\nRoad x: %d\nRoad x2: %d\nOffroad: %d\n%d\n", time_paused, player.x, player.x+player.width, road[LCD_Y-5], road[LCD_Y-5] + road_width, offroad(player), 0);
+
+        // Test: Accelerator and Brake
+        usb_send_message(DEBUG, 3, buffer, 80, "Time step: %.3f\nSpeed: %.0f\nOffroad: %d\n%d\n", time_paused, speed, offroad(player), 0);
     } else {
         // Draw the terrain
         for(int i=0; i<NUM_TERRAIN; i++) {
@@ -633,14 +638,14 @@ void game_screen_step(void) {
     }
 
     // Check if the car has collided with an obstacle
-    if(check_collision(player)) {
+    /*if(check_collision(player)) {
         // Check if the car has collided with a fuel station
         if(check_sprite_collided(player,fuel_station)) {
             change_screen(GAMEOVER_SCREEN);
         } else {
             handle_collision();
         }
-    }
+    }*/
 
     // Step through our objects
     terrain_step();
@@ -818,23 +823,23 @@ void player_speed_input(void) {
         if(offroad(player)) {
             rate = 3.0/120.0;
         }else { // Calculate rate to increase speed in order to go from 1 to 10 in 5 seconds
-            rate = 10.0/90.0;
+            rate = 10.0/110.0;
         }
     }else { // If no button is being pressed
         // Decrease speed if above 1 or increase to 1 if below
         if(speed > 1) {
             // Calculate rate to increase speed in order to go from 3 to 1 in 3 seconds
             if(offroad(player)) {
-                rate = -3.0/75.0;
+                rate = -3.0/80.0;
             }else { // Calculate rate to increase speed in order to go from 10 to 1 in 3 seconds
-                rate = -10.0/80.0;
+                rate = -10.0/75.0;
             }
         }else {
             // Calculate rate to increase speed in order to go from 0 to 1 in 3 seconds
             if(offroad(player)) {
-                rate = 1.0/30.0;
+                rate = 1.0/130.0;
             }else { // Calculate rate to increase speed in order to go from 0 to 1 in 2 seconds
-                rate = 1.0/20.0;
+                rate = 1.0/75.0;
             }
         }
     }

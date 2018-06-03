@@ -579,6 +579,11 @@ Updates all game logijc by one tick. Since it's called by \emph{game\_screen\_up
 	void player_speed_input(void);
 \end{lstlisting}
 Will increase or decrease the speed depending if the accelerator or brake is pressed. \emph{Accelerator and brake} will go more in depth regarding this function. This function will ensure the speed is constrained by the limits set.
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	bool offroad(Sprite sprite)
+\end{lstlisting}
+Checks if the sprite sent by the input is outside the boundaries of the road (both to the left or to the right of the road).
 \newline
 
 \subsection*{Testing}
@@ -1108,6 +1113,20 @@ Called every time the game steps. Will shift the \emph{road} array to the right 
 \newline
 
 \subsection*{Testing}
+The smoothness of the road was achieved through trial and error by modifying the values of \emph{ROAD\_CURVE}.The following test plan was conducted to verify that the road curves significantly enough that the player will go offroad if they keep going straight. This was done by getting the x-coordinates of the road and the x-coordinates of the player and making sure they don't overlap.
+\newline
+This testing plan ocurred throughout one game session to show that the road keeps moving throughout the whole game.
+\begin{center}
+\begin{tabular}{ c c c c c c }
+Timestep	& Car x 	& Road x 	& Car offroad	& Expected offroad		& Test result		\\ \hline
+0.615		& 53 - 57	& 46 - 62	& 0			& 0				& Pass		\\
+9.954		& 53 - 57	& 30 - 46	& 1			& 1				& Pass		\\
+26.358	& 53 - 57	& 31 - 47	& 1			& 1				& Pass		\\
+52.416	& 53 - 57	& 49 - 65	& 0			& 0 				& Pass		\\
+60.502	& 53-57	& 66 - 82	& 1			& 1				& Pass		\\ \hline
+\end{tabular}
+\end{center}
+
 
 \clearpage
 
@@ -1122,10 +1141,56 @@ This section expands upon \emph{Acceleration and Speed} so it uses the globals a
 	// Lines
 	void player_speed_input(void)
 \end{lstlisting}
-Called every iteration of the game loop. It will read the state of SW2 and SW3 and modify the speed variable by a rate appropriate to the condition (outlined in the test plan). Will almost make sure the speed is kept to its bounds whether offroad or on the road.
+Called every iteration of the game loop. It will read the state of SW2 and SW3 and modify the speed variable by a rate appropriate to the condition (outlined in the test plan). Will always make sure the speed is kept to its bounds whether offroad or on the road. This function will verify that when the accelerator is pressed, the brake will have no effect on the state of the car and vice-versa. 
 \newline
 
 \subsection*{Testing}
+\subsubsection{Test Plan: Braking - 10 to 0 in two seconds}
+The left button (SW2) was held to brake the car and make sure it is slows down at the required rate. The time was then taken when the car is travelling at a speed of 10 and then taken again as soon as the car hits a speed of 0.
+\begin{center}
+\begin{tabular}{ c c c c c c }
+Timestep	& Expected timestep	& Speed	& Test Pass	\\ \hline
+0.233		& 0				& 10		& Pass	\\
+2.050		& 2				& 0		& Pass 	\\ \hline
+\end{tabular}
+\end{center}
+
+\subsubsection{Test Plan: Accelerating - 1 to 10/3 in five seconds}
+The right button (SW3) was held to keep the car accelerating. A snapshot was taken when the car is at a speed of 0 and then again as soon as the car hits a speed of 10 or 3. The maximum speed will depend if the car is on the road or off the road.
+\begin{center}
+\begin{tabular}{ c c c c c c }
+Timestep	& Expected timestep	& Speed	& Offroad	& Test result	\\ \hline
+0.263		& 0 				& 0		& 0		& Pass	\\
+5.291		& 5				& 10		& 0		& Pass	\\
+2.338		& 2				& 0		& 1		& Pass	\\
+7.053		& 7				& 3		& 1		& Pass	\\ \hline
+\end{tabular}
+\end{center}
+
+\subsubsection{Test Plan: Idle - 10/3 to 1 in three seconds}
+No buttons were pressed and the car was left to decelerate on it's own. First snapshop was teken when the car had a maximum speed (dependent if it was offroad or not), and then the second snapshot was taken as soon as the speed hit 1.
+\begin{center}
+\begin{tabular}{ c c c c c c }
+Timestep	& Expected timestep	& Speed	& Offroad	& Test result	\\ \hline
+0.092		& 0				& 10		& 0		& Pass	\\
+3.308		& 3				& 1		& 0		& Pass	\\
+0.873		& 0				& 3		& 1		& Pass	\\
+3.743		& 3				& 1		& 1		& Pass	\\ \hline
+\end{tabular}
+\end{center}
+\newpage
+
+\subsubsection{Test Plan: Idle - 0 to 1 in 2/3 seconds}
+The brake was held at the start to make the speed equal to 0, a snapshot was then take. The brake was then released and no buttons were pressed. A second snapshot was then when the speed of the car hit 1. 
+\begin{center}
+\begin{tabular}{ c c c c c c }
+Timestep	& Expected timestep	& Speed	& Offroad	& Test result	\\ \hline
+0.389		& 0				& 0		& 0		& Pass	\\
+2.355		& 2				& 1		& 0		& Pass	\\
+1.081		& 1				& 0		& 1		& Pass	\\
+4.246		& 4				& 1		& 1		& Pass	\\ \hline
+\end{tabular}
+\end{center}
 
 \clearpage
 
