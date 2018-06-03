@@ -568,6 +568,11 @@ If the speed\_counter is greater than SPEED\_THRESH, the game logic will be upda
 \newpage
 \begin{lstlisting}[style=CStyle]
 	// Lines
+	void game_screen_step(void)
+\end{lstlisting}
+Updates all game logijc by one tick. Since it's called by \emph{game\_screen\_update()} when the \emph{speed\_counter} is greater than \emph{SPEED\_THRESH}, every function or variable called from this function will be affected by how fast the car is moving.
+\begin{lstlisting}[style=CStyle]
+	// Lines
 	void player_speed_input(void);
 \end{lstlisting}
 Will increase or decrease the speed depending if the accelerator or brake is pressed. \emph{Accelerator and brake} will go more in depth regarding this function. This function will ensure the speed is constrained by the limits set.
@@ -1062,15 +1067,45 @@ Called every time the game steps. Will shift the \emph{road} array to the right 
 \clearpage
 
 %----------------------------------------------------------------------------------------
-%	Accelerator and Break
+%	ACCELERATOR AND BRAKE
 %----------------------------------------------------------------------------------------
-\section{Accelerator and Break}
-
+\section{Accelerator and Brake}
+This section expands upon \emph{Acceleration and Speed} so it uses the globals and functions already defined there. When the accelerator (SW2) or brake (SW3) are pressed, the speed is modified by a rate that satifies the conditions outlined in the test plan.
+ 
 \subsection*{Functions}
 \begin{lstlisting}[style=CStyle]
 	// Lines
 	void player_speed_input(void)
 \end{lstlisting}
+Called every iteration of the game loop. It will read the state of SW2 and SW3 and modify the speed variable by a rate appropriate to the condition (outlined in the test plan). Will almost make sure the speed is kept to its bounds whether offroad or on the road.
+\newline
+
+\subsection*{Testing}
+
+\clearpage
+
+%----------------------------------------------------------------------------------------
+%	MORE REALISTIC STEERING
+%----------------------------------------------------------------------------------------
+\section{More realistic steering}
+This section expands upon \emph{Horizontal Movement} so it uses the globals and functions already defined there. The rate at which the car moves horizontally is affected by the speed. Thus, the faster the car is moving forward, the faster it can swerve left or right.
+
+\subsection*{Functions}
+\begin{lstlisting}[style=CStyle]
+	// Lines
+	void player_car_move(int dx)
+\end{lstlisting}
+This moves the car one pixel to the left or right depending on the value of dx. It will also check if the car stays in bounds when moving. There is no need to make the x coordinate of the car change by a horizontal value because this function is called from \emph{game\_step()} (see \emph{Acceleration and Speed}), therefore this function is already affected by the speed of the car.
+
+\subsection*{Testing}
+
+\clearpage
+
+%----------------------------------------------------------------------------------------
+%	FUEL LEVEL INCREASES GRADUALLY
+%----------------------------------------------------------------------------------------
+\section{Fuel level increases gradually}
+
 \clearpage
 
 %----------------------------------------------------------------------------------------
