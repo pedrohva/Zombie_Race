@@ -562,7 +562,13 @@ void game_screen_draw(void) {
         //usb_send_message(DEBUG, 6, buffer, 80, "Time step: %.3f\nCar x: %.0f\nCar x2: %.0f\nRoad x: %d\nRoad x2: %d\nOffroad: %d\n%d\n", time_paused, player.x, player.x+player.width, road[LCD_Y-5], road[LCD_Y-5] + road_width, offroad(player), 0);
 
         // Test: Accelerator and Brake
-        usb_send_message(DEBUG, 3, buffer, 80, "Time step: %.3f\nSpeed: %.0f\nOffroad: %d\n%d\n", time_paused, speed, offroad(player), 0);
+        //usb_send_message(DEBUG, 3, buffer, 80, "Time step: %.3f\nSpeed: %.0f\nOffroad: %d\n%d\n", time_paused, speed, offroad(player), 0);
+
+        // Test: More realistic steering 
+        //usb_send_message(DEBUG, 3, buffer, 80, "Time step: %.3f\nCar x: %.0f\nSpeed: %.0f\n%d\n", time_paused, player.x, speed, 0);
+
+        // Test: Fuel level increases gradually
+        usb_send_message(DEBUG, 2, buffer, 80, "Time step: %.3f\nFuel: %.0f\n%d\n", time_paused, fuel, 0);
     } else {
         // Draw the terrain
         for(int i=0; i<NUM_TERRAIN; i++) {
@@ -629,7 +635,7 @@ void game_screen_step(void) {
 
     if(++distance_counter > FUEL_FACTOR) {
         // Update the fuel
-        //fuel--;
+        fuel--;
         // Update the distance
         distance++;
         finish_line--;
@@ -736,8 +742,8 @@ void gameover_screen_update(void) {
     }
 
     // Test: Game over screen
-    char buffer[80];
-    usb_send_message(DEBUG, 3, buffer, 80, "Time step: %.3f\nDistance: %d\nGame lost: %d\n%d\n", elapsed_time(game_timer_counter), distance, game_over_loss, 0);
+    //char buffer[80];
+    //usb_send_message(DEBUG, 3, buffer, 80, "Time step: %.3f\nDistance: %d\nGame lost: %d\n%d\n", elapsed_time(game_timer_counter), distance, game_over_loss, 0);
 }
 
 /**
@@ -1205,7 +1211,7 @@ void refuel(void) {
 			refuelling = false;
 		} else {
             // Increment the fuel value with a rate that would go 0-100 in 3 seconds
-            fuel++;
+            fuel += 1.7;
 
             // Prevent overshoot and cancel fuelling if reached max fuel
             if(fuel > FUEL_MAX) {

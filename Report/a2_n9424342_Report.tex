@@ -978,7 +978,7 @@ Timestep	& Car x 	& Object x 	& stick\_left\_state	& stick\_right\_state	& Colli
 7.871		& 51 - 55	& 55 - 60	& 0			& 1				& 0		& 0 			& Pass	\\
 3.161		& 62 - 66	& 55 - 60	& 0			& 0				& 0 		& 0 			& Pass	\\
 7.292		& 60 - 64	& 55 - 60	& 1			& 0				& 0		& 0			& Pass 	\\
-7.689		& 60 - 64	& 55 - 60	& 1			& 0				& 0		& 0			& Pass 	\\
+7.689		& 60 - 64	& 55 - 60	& 1			& 0				& 0		& 0			& Pass 	\\ \hline
 \end{tabular}
 \end{center}
 This test involved moving to a path next to an object, then holding the left or right joystick continuously in order to test if the car remained in the same position in order to avoid clipping into an obstacle.
@@ -1209,6 +1209,18 @@ This moves the car one pixel to the left or right depending on the value of dx. 
 \newline
 
 \subsection*{Testing}
+To verify that the horizontal movement is affected by the speed of the car, the car was moved at a constant speed from its initial position until it reaches the left border of the playing area where the game was pause and the current game information sent to the server. To enable the speed to stay constant, the offroad speed limit and collisions with objects were disabled temporarily.
+\begin{center}
+\begin{tabular}{ c c c c c c }
+Timestep	& Expected timestep	& Car x 	& Speed	& Test passed	\\ \hline
+0.093		& 0				& 53		& 10		& Pass		\\
+2.305		& - 				& 27		& 10		& Pass		\\
+0.140		& 0				& 53		& 5		& Pass		\\
+4.364		& \verb|>|2.305		& 27		& 5		& Pass		\\
+0.139		& 0				& 53		& 2		& Pass		\\
+7.900		& \verb|>|4.364		& 27		& 2		& Pass		\\ \hline.
+\end{tabular}
+\end{center}
 
 \clearpage
 
@@ -1223,6 +1235,20 @@ This section expands upon \emph{Fuel} and \emph{Fuel Depot}  so it uses the glob
 	// Lines
 	void refuel(void)
 \end{lstlisting}
+Refuel is called every tick of the game loop. It will check if the player meets the criteria to start or continue refuelling (brake pressed and speed of 0) and then will increase the fuel amount by a rate that would make the fuel tank go from 1 to 100 in three seconds.
+
+\subsection*{Testing}
+This test verifies that the fuel increases at a rate that would allow a fuel tank to go from 1 to 100 in three seconds. The fuel variable will be checked to make sure it is displayed correctly in the dashboard in real time as the car refuels and that partial top-ups would be allowed if the car stops refuelling halfway through. 
+\begin{center}
+\begin{tabular}{ c c c c c c }
+Timestep	& Fuel		& Expected timestep	& Test result	\\ \hline
+21.557	& 10		& - 				& n/a 		\\
+22.961	& 63		& \verb|<|24.557 		& Pass	\\
+24.234	& 100		& 24.557 			& Pass 	\\ \hline
+
+\end{tabular}
+\end{center}
+
 
 \clearpage
 
